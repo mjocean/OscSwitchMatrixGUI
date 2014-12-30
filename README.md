@@ -2,6 +2,7 @@ OscSwitchMatrixGUI
 ==================
 
 A wxPython-based Graphical switch matrix that lets you send switch events to the OSC mode for PyProcGame.
+(Thread for questions/support: http://www.pinballcontrollers.com/forum/index.php?topic=1400)
 
 The tool reads your machine yaml for switch definitions.  Left click a switch to toggle it 
 (mouse down for active, mouse up for inactive), and right click to turn it on.
