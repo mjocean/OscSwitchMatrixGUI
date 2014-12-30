@@ -8,6 +8,10 @@ The tool reads your machine yaml for switch definitions.  Left click a switch to
 
 ![Screenshot](https://dl.dropboxusercontent.com/u/254844/T2-preview/OSC_Gui_Preview.png "Screenshot of the tool running against my T2.yaml")
 
+If you're feeling fancy, you can use a playfield image as a background (command line option -i [filemname]) and use the layout mode to place the switches around the playfield (make sure you save your layout!  --next time load with -l [file.layout]).
+
+![Screenshot](https://dl.dropboxusercontent.com/u/254844/T2-preview/OSC_Gui_PlayfieldLayout.png "Screenshot of the tool running in graphical mode against my T2.yaml")
+
 This has been tested with Williams machines and PDB boards.  Both switch number types are supported
 
 # Requirements:
