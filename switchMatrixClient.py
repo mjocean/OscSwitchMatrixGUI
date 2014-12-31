@@ -423,7 +423,7 @@ def main():
         app = wx.App(redirect=False)
         frame = MyFrame(None, -1, 'OSC Switch Matrix for PyProcGame', pos=wx.DefaultPosition, size=wx.Size(600,400))
 
-        gs = wx.GridSizer(9, 8, 2, 2) # rows, cols, gap
+        gs = wx.GridSizer(rows=9) # rows, cols, gap
         buttonMaker = ButtonMaker(frame)
  
         # hold all the switches so we can know which 
