@@ -53,11 +53,15 @@
 
 
 import OSC
+import socket
+import threading
 from optparse import OptionParser
 import socket
 import wx
 import yaml
 import random
+import time
+import sys
 
 try:
     if(wx.NullColor is None):
@@ -67,10 +71,15 @@ except:
 
 states = {}
 buttons = {}
-
+lamp_list = {}
+dirty = False
+lamps_dirty = False
+frame = None
+lamps_from_server = False
+lamp_thread_wakeup = threading.Event()
 server_ip = socket.gethostbyname(socket.gethostname())
 parser = OptionParser()
-
+lamp_delay = 16
 
 parser.add_option("-s", "--address",
                                     action="store", type="string", 
@@ -85,7 +94,7 @@ parser.add_option("-p", "--port",
 parser.add_option("-y", "--yaml",
                                     action="store", type="string", 
                                     dest="yaml_file", default='game.yaml',
-                                    help="The yaml file name for the machine definition.  Default is 'game.yaml'.")
+                                    help="The yaml file name for the machine definition.  Default is 'game.yaml' (if present).")
 
 parser.add_option("-i", "--image",
                                     action="store", type="string", 
@@ -103,6 +112,73 @@ options = vars(options)
 osc_client = OSC.OSCClient()
 osc_client.connect((server_ip, options['server_port']))
 
+################# SERVER LAMP SUPPORT ################33
+
+# def PromptForLampInfo(self):
+#     dlg = LampProperties(self)
+#     if dlg.ShowModal() == wx.ID_OK:
+#         # save changes in lamp_list
+#         pass
+
+
+def my_message_receiver(addr, tags, data, client_address):
+    """ receives OSC messages and acts on them by setting switches."""
+    #print("recvd OSC message: " + str(addr) + str(data))
+    # need to add supprt for "sync" instruction which we'll call when switching tabs in touchOSC
+    global lamp_list
+    global lamps_dirty
+
+    msg = addr.split("/")
+    if(msg[1] == "lamps"):
+        if(msg[2] in lamp_list):
+            if(int(data[0]) == 1):
+                lamp_list[msg[2]].color = lamp_list[msg[2]].color_on
+            else:
+                lamp_list[msg[2]].color = lamp_list[msg[2]].color_off
+        else:
+            print("Lamp '%s' not found in list" % msg[2] )
+        lamps_dirty = True
+    else:
+        #strip out the switch name
+        switchname = addr.split("/")[-1]  # This is the OSC address, not the IP address. Strip out the characters after the final "/"
+
+
+running = True
+
+local_ip = socket.gethostbyname(socket.gethostname())
+receive_address = (local_ip, 8000)  # create a tuple from the IP & UDP port
+server = OSC.OSCServer(receive_address)
+server.addDefaultHandlers()
+server.addMsgHandler("default", my_message_receiver)
+server_thread = threading.Thread(target=server.serve_forever)
+server_thread.start()
+
+
+################# SERVER LAMP SUPPORT ################33
+
+def lamp_updater():
+    global lamps_dirty
+    global frame
+    print("Lamp Updater thread initialized.")
+    while(running):
+        lamp_thread_wakeup.wait()
+        if(lamps_dirty):
+            frame.doRefresh()
+            #print("------------LAMP UPDATER Req Refresh--------------------")
+        sendOSCLampReq(None)
+        #print("------------LAMP UPDATER Snding Lamp Req--------------------")
+        time.sleep(1.0/lamp_delay)
+        #print("sleeping for %f" % (1.0/lamp_delay) )
+    print("Lamp Updater thread done.")
+
+lamp_thread = threading.Thread(target=lamp_updater)
+
+def sendOSCLampReq(event):
+        addr = '/lamps/get' 
+        osc_msg = OSC.OSCMessage(addr)
+        #print("SENDING: %s" % str(osc_msg))
+        osc_client.send(osc_msg)
+
 def sendOSC(evt_src, new_state=None):
         btn = evt_src.EventObject
         addr = '/sw/%s' % btn.id
@@ -111,17 +187,30 @@ def sendOSC(evt_src, new_state=None):
         if(states[btn.id]==False and new_state==True):
                 btn.SetBackgroundColour(wx.GREEN)
                 states[btn.id]=True
-                osc_msg.append(1)
+                osc_msg.append(1.0)
                 print('%s %s' % (addr, 1) )
         elif(states[btn.id]==True and new_state==False):
                 btn.SetBackgroundColour(wx.NullColor)
                 states[btn.id]=False        
-                osc_msg.append(0)
+                osc_msg.append(0.0)
                 print('%s %s' % (addr, 0) )
         else:
                 print("click ignored")
         osc_client.send(osc_msg)
         btn.ClearBackground()
+        #sendOSCLampReq()
+
+
+class GameLamp(object):
+    def __init__(self, name, yaml_number, x, y, color_on, color_off):
+        self.name = name
+        self.yaml_number = yaml_number
+        self.x = x
+        self.y = y
+        self.color_on = color_on
+        self.color_off = color_off
+        self.color = color_off
+        self.size = 10
 
 ##############################################
 # GUI: Button Maker
@@ -232,6 +321,86 @@ class ButtonMaker(object):
 
         return button
 
+    def onLampClick(self,event):
+        btn = event.EventObject
+        print "Lamp move '%s' requested!" % btn.id
+        
+        if(self.frame.layout_mode):
+            self.frame.last_lamp_pressed = btn.id
+            btn.SetBackgroundColour(wx.CYAN)
+            self.frame.SetCursor(wx.StockCursor(wx.CURSOR_CROSS))
+            print(self.frame.last_lamp_pressed)
+        else:
+            pass # not sure how someone would click a lamp when they aren't visible...
+
+
+    def makeLampMoveButton(self, lname, lamps):
+        number = lamps[lname].yaml_number
+
+        lbl = lname
+
+        button = wx.Button(self.frame.winLampLayoutPalette, label='%s\n%s' % (lname, number))
+
+        button.SetToolTipString(lbl)
+        button.SetWindowVariant(wx.WINDOW_VARIANT_NORMAL)
+        button.id = lname
+
+        button.Bind(wx.EVT_LEFT_DOWN, self.onLampClick)
+
+        return button
+
+
+class DialogChangeLampRate(wx.Dialog):
+    # http://zetcode.com/wxpython/dialogs/
+    def __init__(self, *args, **kw):
+        super(DialogChangeLampRate, self).__init__(*args, **kw) 
+            
+        self.InitUI()
+        self.SetSize((250, 200))
+        self.SetTitle("Set Lamp Update Rate")
+        self.value = None        
+    
+    def EvtRadioBox(self, event):
+        print('EvtRadioBox: %d %s\n' % (event.GetInt(), event.GetString()))
+        self.value = event.GetString()
+
+    def InitUI(self):
+
+        vbox = wx.BoxSizer(wx.VERTICAL)
+
+        radioList = ['32','24','16','8','4']        
+
+        rb = wx.RadioBox(self, label="Lamp refresh rate (requests/second)", choices=radioList,  majorDimension=5, style=wx.RA_SPECIFY_ROWS)
+        self.Bind(wx.EVT_RADIOBOX, self.EvtRadioBox, rb)
+
+        rb.SetSelection(radioList.index(str(lamp_delay)))
+        self.value = rb.GetStringSelection()
+       
+        hbox2 = wx.BoxSizer(wx.HORIZONTAL)
+        okButton = wx.Button(self, wx.ID_OK, label='Ok')
+        closeButton = wx.Button(self, label='Close')
+        hbox2.Add(okButton)
+        hbox2.Add(closeButton, flag=wx.LEFT, border=5)
+
+        vbox.Add(rb, proportion=1, 
+            flag=wx.ALL|wx.EXPAND, border=5)
+        vbox.Add(hbox2, 
+            flag=wx.ALIGN_CENTER|wx.TOP|wx.BOTTOM, border=10)
+
+        self.SetSizer(vbox)
+        
+        okButton.Bind(wx.EVT_BUTTON, self.OnOK)
+        closeButton.Bind(wx.EVT_BUTTON, self.OnClose)
+
+    def OnOK(self, e):
+        global lamp_delay
+        lamp_delay = int(self.value)
+        self.Destroy()
+        return wx.ID_OK
+        
+    def OnClose(self, e):
+        self.Destroy()
+
 
 class MyFrame(wx.Frame):
     def __init__(self,  parent, id=-1, title="", 
@@ -244,6 +413,7 @@ class MyFrame(wx.Frame):
         self.layout_data = {}
 
         self.layout_data['button_locations'] = []
+        self.layout_data['lamp_locations'] = []
         if(options['layout_file'] is not None):
             self.graphical_mode = True
             self.loadLayoutInfo(None)
@@ -266,8 +436,11 @@ class MyFrame(wx.Frame):
 
         self.bmp = wx.Bitmap(bgfile)
         self.SetClientSizeWH(self.bmp.GetWidth(), self.bmp.GetHeight())
-        self.Bind(wx.EVT_ERASE_BACKGROUND, self.OnEraseBackground)
+        self.Bind(wx.EVT_ERASE_BACKGROUND, self.OnEraseBackgroundDummy)
+        self.Bind(wx.EVT_PAINT, self.OnEraseBackground)
+
         self.Bind(wx.EVT_LEFT_DOWN, self.LeftButtonDOWN)
+        self.Bind(wx.EVT_RIGHT_DOWN, self.RightButtonDOWN)
         # more features to come...
         menuBar = wx.MenuBar()
         fileMenu = wx.Menu()
@@ -294,39 +467,75 @@ class MyFrame(wx.Frame):
             
         editMenu.Check(self.toggleLayoutMode.GetId(), False)
 
+        self.toggleLampRender = editMenu.Append(wx.NewId(), 'Update Lamps', 
+            'Periodically sends requests for lamp info to the OSC server', kind=wx.ITEM_CHECK)
+        self.Bind(wx.EVT_MENU, self.ToggleLampOSC, self.toggleLampRender)
+            
+        editMenu.Check(self.toggleLampRender.GetId(), False)
+
+        lampRateMenuItem = editMenu.Append(wx.NewId(), "Change Lamp update rate",
+                                       "Adjust the lamp refresh rate")
+        self.Bind(wx.EVT_MENU, self.PromptForLampRate, lampRateMenuItem)
+
+
         self.SetMenuBar(menuBar)
         if(self.graphical_mode):
-            self.newWin = wx.Frame(None, -1,'Switch Layout Pallete (click to place)', size=(400,300))
-            self.newWin.Show(False)
-            self.newWin.Bind(wx.EVT_CLOSE, self.hideSubWin)
+            self.winButtonLayoutPalette = wx.Frame(None, -1,'Switch Layout Pallete (click to place)', size=(400,300))
+            self.winButtonLayoutPalette.Show(False)
+            self.winButtonLayoutPalette.Bind(wx.EVT_CLOSE, self.hideSubWin)
+
+            self.winLampLayoutPalette = wx.Frame(None, -1,'Lamp Layout Pallete (click to place)', size=(400,300))
+            self.winLampLayoutPalette.Show(False)
+            self.winLampLayoutPalette.Bind(wx.EVT_CLOSE, self.hideSubWin)
+
         self.Bind(wx.EVT_CLOSE, self.OnCloseFrame)
 
     def hideSubWin(self, event):
-        self.newWin.Show(False)
+        self.winButtonLayoutPalette.Show(False)
+        self.winLampLayoutPalette.Show(False)
         event.StopPropagation()
 
     #----------------------------------------------------------------------
     # Destroys the main frame which quits the wxPython application
     def OnExitApp(self, event):
         if(self.graphical_mode):
-            self.newWin.Destroy()
+            self.winButtonLayoutPalette.Destroy()
+            self.winLampLayoutPalette.Destroy()
         self.Destroy()
+
+        """Shuts down the OSC Server thread. If you don't do this python will hang when you exit the game."""
+        server.close()
+        print("Waiting for the OSC Server thread to finish")
+        server_thread.join()
+        print("OSC Server thread is done.")
+        global running
+        running = False
+        lamp_thread_wakeup.set()
+        lamp_thread.join()
 
 
     # Makes sure the user was intending to quit the application
     def OnCloseFrame(self, event):
-        dialog = wx.MessageDialog(self, message = "Are you sure you want to quit?", caption = "Quit?", style = wx.YES_NO, pos = wx.DefaultPosition)
-        response = dialog.ShowModal()
+        if(dirty):
+            dialog = wx.MessageDialog(self, message = "Are you sure you want to quit?", caption = "Quit?", style = wx.YES_NO, pos = wx.DefaultPosition)
+            response = dialog.ShowModal()
 
-        if (response == wx.ID_YES):
-            self.OnExitApp(event)
+            if (response == wx.ID_YES):
+                self.OnExitApp(event)
+            else:
+                event.StopPropagation()
         else:
-            event.StopPropagation()
+            self.OnExitApp(event)
 
-
+    def RightButtonDOWN(self, event):
+        (x,y) = event.GetPositionTuple()
+        print("right click at (%d,%d)" % (x,y))
 
     def LeftButtonDOWN(self, event):
+        global dirty
+        global lamp_list
         if(self.layout_mode and self.last_button_pressed_id is not None):
+            dirty = True
             (x,y) = event.GetPositionTuple()
             bTmp = buttons[self.last_button_pressed_id]
             (w,h) = bTmp.GetClientSizeTuple()
@@ -340,34 +549,89 @@ class MyFrame(wx.Frame):
             # self.SetCursor(wx.StockCursor(wx.CURSOR_STANDARD))
             
             self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+        elif(self.layout_mode and self.last_lamp_pressed is not None):
+            dirty = True
+            (x,y) = event.GetPositionTuple()
+            # (w,h) = bTmp.GetClientSizeTuple()
+            # x = x - w/2
+            # y = y - h/2
+            lamp_list[self.last_lamp_pressed].x = x
+            lamp_list[self.last_lamp_pressed].y = y
+            # bTmp.SetBackgroundColour(wx.NullColor)
+            print("moved %s to (%d,%d)" % (self.last_lamp_pressed,x,y))
+            self.last_lamp_pressed = None
+            # self.SetCursor(wx.StockCursor(wx.CURSOR_STANDARD))
+            
+            self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+            self.doRefresh()
+
+    def doRefresh(self):
+        global lamps_dirty
+        #print "Refresh!!!"
+        (w,h) = self.GetClientSizeTuple()
+        self.RefreshRect(rect=(0,0,w,h), eraseBackground=True)
+        lamps_dirty = False
 
     def ToggleEditMode(self, state):
         self.layout_mode = self.toggleLayoutMode.IsChecked()
         self.last_button_pressed_id = None
-        print(self.layout_mode)
+        self.last_lamp_pressed = None        
+        
         if(self.layout_mode == True):
-            self.newWin.Show(True)
-            wx.Frame.CenterOnScreen(self.newWin)
+            self.winButtonLayoutPalette.Show(True)
+            self.winLampLayoutPalette.Show(True)
+            wx.Frame.CenterOnScreen(self.winButtonLayoutPalette)
         else:
-            self.newWin.Show(False)
+            self.winLampLayoutPalette.Show(False)
+            self.winButtonLayoutPalette.Show(False)
         pass
+
+    def ToggleLampOSC(self, state):
+        global lamps_from_server
+        global running
+        lamps_from_server = self.toggleLampRender.IsChecked()
+        if(lamps_from_server):
+            print("starting")
+            lamp_thread_wakeup.set()
+        else:
+            print("pausing")
+            lamp_thread_wakeup.clear()
+
+    def PromptForLampRate(self, evt):
+        dLampRate = DialogChangeLampRate(None)
+        dLampRate.ShowModal()
+        dLampRate.Destroy()
 
     def OnEraseBackground(self, evt):
         """
         Add a picture to the background
         """
+        #print("PAINT:")
         # yanked from ColourDB.py
-        dc = evt.GetDC()
-     
-        if not dc:
-            dc = wx.ClientDC(self)
-            rect = self.GetUpdateRegion().GetBox()
-            dc.SetClippingRect(rect)
+        global lamp_list
+        #dc = evt.GetDC()
+        dc = wx.BufferedPaintDC(self)
+
+        # if not dc:
+        #     dc = wx.ClientDC(self)
+        #     rect = self.GetUpdateRegion().GetBox()
+        #     dc.SetClippingRect(rect)
         dc.Clear()
         dc.DrawBitmap(self.bmp, 0, 0)
+
         # alpha does NOT work on windows... blah.
-        # dc.SetBrush(wx.Brush(wx.Colour(225,0,128,42)))
-        # dc.DrawCircle(170, 230, 35)
+        for n,lamp in lamp_list.iteritems():
+            # print("Drawing lamp '%s' at (%d,%d) in color (%s)" % (lamp.name, lamp.x, lamp.y, lamp.color))
+            dc.SetBrush(wx.Brush(wx.Colour(lamp.color[0],lamp.color[1],lamp.color[2])))
+            dc.DrawCircle(lamp.x, lamp.y, lamp.size)
+
+    def OnEraseBackgroundDummy(self, event):
+        """ Handles the wx.EVT_ERASE_BACKGROUND event for CustomCheckBox. """
+
+        # This is intentionally empty, because we are using the combination
+        # of wx.BufferedPaintDC + an empty OnEraseBackground event to
+        # reduce flicker
+        pass
 
     def dumpLayoutInfo(self, event):
         if(event is not None):
@@ -390,6 +654,7 @@ class MyFrame(wx.Frame):
         window_size = self.GetClientSizeTuple()
         self.layout_data['window_size'] = {'width':window_size[0], 'height':window_size[1]}
         self.layout_data['button_locations'] = []
+        self.layout_data['lamp_locations'] = []
 
         for bID,btn in buttons.iteritems():
             (x,y) = btn.GetPositionTuple()
@@ -399,18 +664,32 @@ class MyFrame(wx.Frame):
             # btndata['y']=y
             self.layout_data['button_locations'].append(btndata)
 
+        #print("KNOWN LAMP COUNT %d" % len(lamp_list))
+        for lID,lamp in lamp_list.iteritems():
+            lampdata = {}
+            lampdata[lID]={'x':lamp.x, 'y':lamp.y, 'color_off':{'r':lamp.color_off[0], 'g':lamp.color_off[1],'b':lamp.color_off[2]}, 'color_on':{'r':lamp.color_on[0], 'g':lamp.color_on[1],'b':lamp.color_on[2]}}
+            # btndata['x']=x 
+            # btndata['y']=y
+            self.layout_data['lamp_locations'].append(lampdata)
+
         if(dest_file is not None):
             yaml.dump(self.layout_data, stream=dest_file, default_flow_style=False)
         else:
-            print(yaml.dump(self.layout_data, default_flow_style=False))
+            pass 
+            # print(yaml.dump(self.layout_data, default_flow_style=False))
+        global dirty
+        dirty = False
+
 
     def loadLayoutInfo(self, event):
         self.layout_data = yaml.load(file(options['layout_file']))
         
         #self.bg_image = self.layout_data['bg_image']
-        print(self.layout_data)
-        print("w=%d, h=%d" % (self.layout_data['window_size']['width'], self.layout_data['window_size']['height']))
+        #print(self.layout_data)
+        #print("w=%d, h=%d" % (self.layout_data['window_size']['width'], self.layout_data['window_size']['height']))
         self.SetClientSizeWH(self.layout_data['window_size']['width'], self.layout_data['window_size']['height'])
+        global dirty
+        dirty = False
         
         # self.layout_data['button_locations'] = []
 
@@ -419,25 +698,32 @@ class MyFrame(wx.Frame):
 ##############################################
 
 def main():
+        # load the yaml file to find all the switches
+        try:
+            yaml_data = yaml.load(open(options['yaml_file'], 'r'))
+        except Exception, e:
+            if(options['yaml_file']=='game.yaml'):
+                print "Failed to find yaml file '%s' or yaml file was invalid." % options['yaml_file']
+                parser.print_help()
+                kill_threads()
+                return
+            else:
+                print "Failed to find yaml file '%s' or yaml file was invalid." % options['yaml_file']
+                raise
+
         # make the GUI components
         app = wx.App(redirect=False)
+        global frame
         frame = MyFrame(None, -1, 'OSC Switch Matrix for PyProcGame', pos=wx.DefaultPosition, size=wx.Size(600,400))
 
         gs = wx.GridSizer(rows=9) # rows, cols, gap
+        gsLamps = wx.GridSizer(rows=9)
         buttonMaker = ButtonMaker(frame)
  
         # hold all the switches so we can know which 
         # ones are outside the matrix
         game_switches = {}
-
-        # load the yaml file to find all the switches
-        try:
-            yaml_data = yaml.load(open(options['yaml_file'], 'r'))
-        except Exception, e:
-            print "Failed to find yaml file '%s' or yaml file was invalid." % options['yaml_file']
-            print "----"
-            print e
-            return 0
+        game_lamps = {}
 
         if 'PRSwitches' in yaml_data:
             switches = yaml_data['PRSwitches']
@@ -453,8 +739,62 @@ def main():
         else:
             print("PRSwitches section NOT found in specified yaml file '%s'.\nExiting..." % options['yaml_file'])
             print "----"
-            print e
-            return 0
+            raise
+
+        if 'PRLamps' in yaml_data:
+            lamps = yaml_data['PRLamps']
+            global lamp_list
+            global dirty
+
+            for name in lamps:
+                item_dict = lamps[name]
+                yaml_number = str(item_dict['number'])
+
+                game_lamps[yaml_number] = name
+
+                lamplocation = find_key_in_list_of_dicts(name, frame.layout_data['lamp_locations'])
+                if (lamplocation is not None):
+                    ld = lamplocation[name]
+                    y = ld['y']
+                    x = ld['x']
+                    on = ( ld['color_on']['r'] , ld['color_on']['g'], ld['color_on']['b'] ) 
+                    off = ( ld['color_off']['r'] , ld['color_off']['g'], ld['color_off']['b'] ) 
+                else:
+                    x = 0
+                    y = 0
+                    on = (0,255,255)
+                    off = (0,0,0)
+                    dirty = True
+
+                lamp = GameLamp(name, yaml_number, x,y, on, off)
+                lamp_list[name] = lamp
+
+            if(frame.graphical_mode is True):
+                for r in range(0,8):
+                    for c in range(0,8):
+                        lamp_code = 'L%s%s' % (c+1, r+1)
+                            
+                        if lamp_code in game_lamps:
+                            sname = game_lamps.pop(lamp_code)
+                        else:
+                            sname = "N/A"
+
+                        bL = buttonMaker.makeLampMoveButton(sname, lamp_list)
+                        gsLamps.Add(bL, 0, wx.EXPAND)
+                        
+                        if(sname == "N/A"):
+                            button.Enabled = False                
+                for lRemaining in game_lamps.iteritems():
+                    bL = buttonMaker.makeLampMoveButton(lRemaining, lamp_list)
+                    gsLamps.Add(bL, 0, wx.EXPAND)
+
+                # print("learning lamp '%s' at (%d,%d) in color (%s)" % (lamp.name, lamp.x, lamp.y, lamp.color))
+
+            print("PROCESSED %d LAMPS" % len(lamp_list))
+        else:
+            print("PRLamps section NOT found in specified yaml file '%s'.\nExiting..." % options['yaml_file'])
+            print "----"
+            raise
 
         frame.PDB_switches = yaml_data['PRGame']['machineType'] == "pdb"
         if(frame.PDB_switches):
@@ -468,7 +808,7 @@ def main():
                                 if(frame.graphical_mode is False):
                                     gs.Add(button, 0, wx.EXPAND)
                                 else:
-                                    buttonMV = buttonMaker.makeGridButton(sname, switches, forced_frame=frame.newWin)
+                                    buttonMV = buttonMaker.makeGridButton(sname, switches, forced_frame=frame.winButtonLayoutPalette)
                                     gs.Add(buttonMV, 0, wx.EXPAND)
 
                                 # remove the switch from the to-do list
@@ -490,7 +830,7 @@ def main():
                                 if(frame.graphical_mode is False):
                                     gs.Add(button, 0, wx.EXPAND)
                                 else:
-                                    buttonMV = buttonMaker.makeGridButton(sname, switches, switch_code, forced_frame=frame.newWin)
+                                    buttonMV = buttonMaker.makeGridButton(sname, switches, switch_code, forced_frame=frame.winButtonLayoutPalette)
                                     gs.Add(buttonMV, 0, wx.EXPAND)
                             else:
                                 print "Warning: didn't find a definition for switch at location (%d,%d)'" % (c+1,r+1)
@@ -501,7 +841,7 @@ def main():
                                     gs.Add(button, 0, wx.EXPAND)
                                     button.Enabled = False
                                 else:
-                                    buttonMV = buttonMaker.makeGridButton(sname, switches, switch_code, forced_frame=frame.newWin)
+                                    buttonMV = buttonMaker.makeGridButton(sname, switches, switch_code, forced_frame=frame.winButtonLayoutPalette)
                                     buttonMV.Enabled = False
                                     gs.Add(buttonMV, 0, wx.EXPAND)
                                 pass
@@ -520,24 +860,58 @@ def main():
                 if(frame.graphical_mode is False):
                     gs.Add(button, 0, wx.EXPAND)
                 else:
-                    buttonMV = buttonMaker.makeGridButton(sname, switches, forced_frame=frame.newWin)
+                    buttonMV = buttonMaker.makeGridButton(sname, switches, forced_frame=frame.winButtonLayoutPalette)
                     gs.Add(buttonMV, 0, wx.EXPAND)
 
         if(frame.graphical_mode is False):
             frame.SetSizer(gs)
         else:
-            frame.newWin.SetSizer(gs)
-        
+            frame.winButtonLayoutPalette.SetSizer(gs)
+            frame.winLampLayoutPalette.SetSizer(gsLamps)
+
+        # button = wx.Button(frame, pos=(200,200), size=(40,20), label='GET LAMPS')
+        # button.SetWindowVariant(wx.WINDOW_VARIANT_MINI)
+        # button.Bind(wx.EVT_LEFT_DOWN, sendOSCLampReq)
+
+        running = True
+        lamp_thread.start()
+
         frame.Show()
         #wx.SetCursor(wx.CURSOR_BULLSEYE)
         frame.dumpLayoutInfo(None)
         app.MainLoop()
-
         # END main()
 
 def find_key_in_list_of_dicts(key, list):
     found_item = next((tmpItem for tmpItem in list if key in tmpItem), None)
     return found_item
 
+def kill_threads():
+    """Shuts down the OSC Server thread. If you don't do this python will hang when you exit the game."""
+    server.close()
+    # print("Waiting for the OSC Server thread to finish")
+    try:
+        server_thread.join()
+    except Exception, eT:
+        pass
+
+    running = False
+    lamp_thread_wakeup.set()
+
+    try:
+        lamp_thread.join()
+    except Exception, eT:
+        pass
+
+
 if __name__ == '__main__':
-        main()
+    try:
+        main()    
+    except Exception, e:
+        print "Exception encountered: %s" % str(e)
+        # backup the exception info...
+        exc_info = sys.exc_info()
+
+        kill_threads()
+
+        raise exc_info[0], exc_info[1], exc_info[2]
