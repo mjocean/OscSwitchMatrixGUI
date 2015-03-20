@@ -334,8 +334,9 @@ class ButtonMaker(object):
             pass # not sure how someone would click a lamp when they aren't visible...
 
 
-    def makeLampMoveButton(self, lname, lamps):
-        number = lamps[lname].yaml_number
+    def makeLampMoveButton(self, lname, lamps, number=None):
+        if(number is None):
+            number = lamps[lname].yaml_number
 
         lbl = lname
 
@@ -611,6 +612,7 @@ class MyFrame(wx.Frame):
         global lamp_list
         #dc = evt.GetDC()
         dc = wx.BufferedPaintDC(self)
+        dc = wx.GCDC(dc)
 
         # if not dc:
         #     dc = wx.ClientDC(self)
@@ -622,7 +624,8 @@ class MyFrame(wx.Frame):
         # alpha does NOT work on windows... blah.
         for n,lamp in lamp_list.iteritems():
             # print("Drawing lamp '%s' at (%d,%d) in color (%s)" % (lamp.name, lamp.x, lamp.y, lamp.color))
-            dc.SetBrush(wx.Brush(wx.Colour(lamp.color[0],lamp.color[1],lamp.color[2])))
+            dc.SetBrush(wx.Brush(wx.Colour(lamp.color[0],lamp.color[1],lamp.color[2],128)))
+            dc.SetPen(wx.Pen(wx.Colour(255,255,192), 1, wx.SOLID))            
             dc.DrawCircle(lamp.x, lamp.y, lamp.size)
 
     def OnEraseBackgroundDummy(self, event):
@@ -776,16 +779,16 @@ def main():
                             
                         if lamp_code in game_lamps:
                             sname = game_lamps.pop(lamp_code)
+                            bL = buttonMaker.makeLampMoveButton(sname, lamp_list)
                         else:
                             sname = "N/A"
+                            bL = buttonMaker.makeLampMoveButton(sname, lamp_list, lamp_code)
+                            bL.Enabled = False                
 
-                        bL = buttonMaker.makeLampMoveButton(sname, lamp_list)
                         gsLamps.Add(bL, 0, wx.EXPAND)
                         
-                        if(sname == "N/A"):
-                            button.Enabled = False                
                 for lRemaining in game_lamps.iteritems():
-                    bL = buttonMaker.makeLampMoveButton(lRemaining, lamp_list)
+                    bL = buttonMaker.makeLampMoveButton(lRemaining[1], lamp_list, lRemaining[0])
                     gsLamps.Add(bL, 0, wx.EXPAND)
 
                 # print("learning lamp '%s' at (%d,%d) in color (%s)" % (lamp.name, lamp.x, lamp.y, lamp.color))
