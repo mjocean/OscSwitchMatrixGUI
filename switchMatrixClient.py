@@ -799,8 +799,8 @@ def main():
             print "----"
             raise
 
-        frame.PDB_switches = yaml_data['PRGame']['machineType'] == "pdb"
-        if(frame.PDB_switches):
+        frame.switch_style = yaml_data['PRGame']['machineType']
+        if(frame.switch_style == "pdb"):
             print("Using PDB style switch numbering.  Trying to order switches...")
             for c in range(0,8):
                     for r in range(0,16):
@@ -819,6 +819,34 @@ def main():
                             except Exception, e:
                                 print "Warning: didn't find a definition for switch at location (%d,%d)'" % (c,r)
 
+        elif(frame.switch_style == "sternSAM"):
+            print("Using SternSAM style switch numbering.  Trying to order switches...")
+            for r in range(0,64):
+                switch_code = 'S%02d' % r
+                
+                if switch_code in game_switches:
+                    sname = game_switches[switch_code]
+                    button = buttonMaker.makeButton(sname, switches)
+                    # remove the switch from the to-do list
+                    del game_switches[switch_code]
+                    if(frame.graphical_mode is False):
+                        gs.Add(button, 0, wx.EXPAND)
+                    else:
+                        buttonMV = buttonMaker.makeGridButton(sname, switches, switch_code, forced_frame=frame.winButtonLayoutPalette)
+                        gs.Add(buttonMV, 0, wx.EXPAND)
+                else:
+                    print "Warning: didn't find a definition for switch at location (%s)'" % switch_code
+                    # print e
+                    sname = "N/A"
+                    if(frame.graphical_mode is False):
+                        button = buttonMaker.makeButton(sname, switches,switch_code)
+                        gs.Add(button, 0, wx.EXPAND)
+                        button.Enabled = False
+                    else:
+                        buttonMV = buttonMaker.makeGridButton(sname, switches, switch_code, forced_frame=frame.winButtonLayoutPalette)
+                        buttonMV.Enabled = False
+                        gs.Add(buttonMV, 0, wx.EXPAND)
+                    pass
         else:
             print("Using Williams/Stern style switch numbering.  Trying to order switches...")
             for r in range(0,8):
