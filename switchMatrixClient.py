@@ -450,6 +450,12 @@ class MyFrame(wx.Frame):
         saveLayoutMenu = fileMenu.Append(wx.NewId(), "Save Layout",
                                        "Saves the layout")
 
+        exportLedMapMenu = fileMenu.Append(wx.NewId(), "Export LED MAP",
+                                       "Exports a LED Map")
+
+        exportLampShotTemplateMenu = fileMenu.Append(wx.NewId(), "Export blank lampshow template",
+                                       "Exports blank lampshow")
+
         exitMenuItem = fileMenu.Append(wx.NewId(), "Exit",
                                        "Exit the application")
         menuBar.Append(fileMenu, "&File")
@@ -459,6 +465,10 @@ class MyFrame(wx.Frame):
         #self.Bind(wx.EVT_MENU, self.loadImage, loadImageMenu)
         self.Bind(wx.EVT_MENU, self.dumpLayoutInfo, saveLayoutMenu)
         
+        self.Bind(wx.EVT_MENU, self.dumpLEDMap, exportLedMapMenu)
+        self.Bind(wx.EVT_MENU, self.dumpLampShowTemplate, exportLampShotTemplateMenu)
+
+
 
         self.Bind(wx.EVT_MENU, self.OnCloseFrame, exitMenuItem)
 
@@ -636,6 +646,48 @@ class MyFrame(wx.Frame):
         # reduce flicker
         pass
 
+    def dumpLEDMap(self, event):
+        if(event is not None):
+            saveFileDialog = wx.FileDialog(self, "Save As", "", "", 
+                                          "LEDMap file (*.txt)|*.txt", 
+                                          wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
+            saveFileDialog.ShowModal()
+            fname = saveFileDialog.GetPath()
+            saveFileDialog.Destroy()
+            print("FILENAME='%s'" % fname)
+            if(fname!=""):
+                dest_file  = open(fname,'w')
+            else:
+                dest_file = None
+        else:
+            dest_file = None
+
+        if(dest_file is None):
+            return 
+
+        # led_map_file['bg_image'] = 'playfield.jpg'
+        my_img_size = self.bmp.GetSize()
+
+        print("image size: %f, %f" % (my_img_size.x, my_img_size.y))
+
+        #print("KNOWN LAMP COUNT %d" % len(lamp_list))
+        for idx,(lamp_id,lamp) in enumerate(lamp_list.iteritems()):
+
+            # convert the location
+            scaled_x = float(lamp.x) / my_img_size.x
+            scaled_y = float(lamp.y) / my_img_size.y
+
+            x = scaled_x * float(250)#219)
+            y = scaled_y * float(505) + 25 #498)
+
+            sLine = "%6s = %03d %03d %s\n" % ("led_" + str(idx), x, y, "-"*64)
+            print(sLine)
+
+            dest_file.write(sLine)
+
+        dest_file.close()
+
+
     def dumpLayoutInfo(self, event):
         if(event is not None):
             saveFileDialog = wx.FileDialog(self, "Save As", "", "", 
@@ -695,6 +747,42 @@ class MyFrame(wx.Frame):
         dirty = False
         
         # self.layout_data['button_locations'] = []
+
+    def dumpLampShowTemplate(self, event):
+        if(event is not None):
+            saveFileDialog = wx.FileDialog(self, "Save As", "", "", 
+                                          "Lampshow file (*.lampshow)|*.lampshow", 
+                                          wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
+            saveFileDialog.ShowModal()
+            fname = saveFileDialog.GetPath()
+            saveFileDialog.Destroy()
+            print("FILENAME='%s'" % fname)
+            if(fname!=""):
+                dest_file  = open(fname,'w')
+            else:
+                dest_file = None
+        else:
+            dest_file = None
+
+        if(dest_file is None):
+            return 
+
+        dest_file.write("##############################################################################################################\n\
+# Lightshow: attract_show_1\n\
+# Type: simple\n\
+# Length: 64 frames / 2 seconds\n\
+##############################################################################################################\n\
+# Markers:                                  |        8      16      24      32      40      48      56      64\n\
+# Frames:                                   | 1234567812345678123456781234567812345678123456781234567812345678\n")
+
+        for idx,(lamp_id,lamp) in enumerate(lamp_list.iteritems()):
+
+            sLamp = "lamp:%s" % lamp_id
+            sLine = sLamp + ' '*(44-len(sLamp)) + '|\n'
+            dest_file.write(sLine)
+
+        dest_file.close()
+
 
 ##############################################
 # main()
@@ -771,6 +859,34 @@ def main():
 
                 lamp = GameLamp(name, yaml_number, x,y, on, off)
                 lamp_list[name] = lamp
+
+            if 'WsRGBs' in yaml_data:
+                lamps = yaml_data['WsRGBs']
+                global lamp_list
+                global dirty
+
+                for name in lamps:
+                    item_dict = lamps[name]
+                    yaml_number = str(item_dict['number'])
+
+                    game_lamps[yaml_number] = name
+
+                    lamplocation = find_key_in_list_of_dicts(name, frame.layout_data['lamp_locations'])
+                    if (lamplocation is not None):
+                        ld = lamplocation[name]
+                        y = ld['y']
+                        x = ld['x']
+                        on = ( ld['color_on']['r'] , ld['color_on']['g'], ld['color_on']['b'] ) 
+                        off = ( ld['color_off']['r'] , ld['color_off']['g'], ld['color_off']['b'] ) 
+                    else:
+                        x = 0
+                        y = 0
+                        on = (0,255,255)
+                        off = (0,0,0)
+                        dirty = True
+
+                    lamp = GameLamp(name, yaml_number, x,y, on, off)
+                    lamp_list[name] = lamp
 
             if(frame.graphical_mode is True):
                 for r in range(0,8):
