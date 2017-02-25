@@ -62,6 +62,8 @@ import yaml
 import random
 import time
 import sys
+import math
+from HelperControls import CheckListWindow, OrderedListPanel
 
 try:
     if(wx.NullColor is None):
@@ -71,7 +73,6 @@ except:
 
 states = {}
 buttons = {}
-lamp_list = {}
 dirty = False
 lamps_dirty = False
 frame = None
@@ -93,7 +94,7 @@ parser.add_option("-p", "--port",
 
 parser.add_option("-y", "--yaml",
                                     action="store", type="string", 
-                                    dest="yaml_file", default='game.yaml',
+                                    dest="yaml_file", default=None,
                                     help="The yaml file name for the machine definition.  Default is 'game.yaml' (if present).")
 
 parser.add_option("-i", "--image",
@@ -131,10 +132,20 @@ def my_message_receiver(addr, tags, data, client_address):
     msg = addr.split("/")
     if(msg[1] == "lamps"):
         if(msg[2] in lamp_list):
-            if(int(data[0]) == 1):
-                lamp_list[msg[2]].color = lamp_list[msg[2]].color_on
+            #print data
+            # print msg[2]
+            # print data
+            # print lamp_list[msg[2]].color_on
+            if len(data)==3:  #RGB DATA
+                if data==[0,0,0]:
+                    lamp_list[msg[2]].color= lamp_list[msg[2]].color_off
+                else:
+                    lamp_list[msg[2]].color = (data[0],data[1], data[2])
             else:
-                lamp_list[msg[2]].color = lamp_list[msg[2]].color_off
+                if(int(data[0]) == 1):
+                    lamp_list[msg[2]].color = lamp_list[msg[2]].color_on
+                else:
+                    lamp_list[msg[2]].color = lamp_list[msg[2]].color_off
         else:
             print("Lamp '%s' not found in list" % msg[2] )
         lamps_dirty = True
@@ -202,15 +213,46 @@ def sendOSC(evt_src, new_state=None):
 
 
 class GameLamp(object):
-    def __init__(self, name, yaml_number, x, y, color_on, color_off):
+    def __init__(self, name, yaml_number, lamplocdata):
+        ld = lamplocdata[name] if lamplocdata is not None else None
+        if (ld is not None):
+            y = ld['y']
+            x = ld['x']
+            on = ( ld['color_on']['r'] , ld['color_on']['g'], ld['color_on']['b'] ) 
+            off = ( ld['color_off']['r'] , ld['color_off']['g'], ld['color_off']['b'] ) 
+            hide = ld['hide'] if('hide' in ld) else False
+        else:
+            x = 0
+            y = 0
+            on = (0,255,255)
+            off = (0,0,0)
+            dirty = True
+            hide = False
         self.name = name
         self.yaml_number = yaml_number
         self.x = x
         self.y = y
-        self.color_on = color_on
-        self.color_off = color_off
-        self.color = color_off
+        self.color_on = on
+        self.color_off = off
+        self.color = off
         self.size = 10
+        self.opacity = 128
+        self.hidden = hide
+
+    def getColorAsHex(self, r, g, b):
+        return "%02x%02x%02x" % ((r,g,b))
+
+    def off(self):
+        self.color = self.color_off
+
+    def on(self):
+        self.color = self.color_on
+
+    def setColor(self, r, g, b, opacity=128):
+        self.color = (r, g, b, opacity)
+
+    def getColor(self):
+        return (r, g, b)
 
 ##############################################
 # GUI: Button Maker
@@ -256,10 +298,13 @@ class ButtonMaker(object):
             lbl = sname
             pass
 
+        hidden = False
         btnlocation = find_key_in_list_of_dicts(sname, self.frame.layout_data['button_locations'])
         if sname in switches and (btnlocation is not None):
             y = btnlocation[sname]['y']
             x = btnlocation[sname]['x']
+            if('hide' in btnlocation[sname]):
+                hidden = btnlocation[sname]['hide']
             pass
         else:
             x = int(self.buttonCounter/8)*25
@@ -272,6 +317,9 @@ class ButtonMaker(object):
 
         button.SetToolTipString(lbl)
 
+        button.hidden = hidden
+        if(hidden):
+            button.Hide()
         button.id = sname
         states[button.id] = False
         buttons[button.id] = button
@@ -403,11 +451,42 @@ class DialogChangeLampRate(wx.Dialog):
         self.Destroy()
 
 
-class MyFrame(wx.Frame):
+class SelectItemsWindow(wx.Frame):
     def __init__(self,  parent, id=-1, title="", 
             pos=wx.DefaultPosition, size=wx.DefaultSize, 
             style=wx.DEFAULT_FRAME_STYLE, name=""):
-        super(MyFrame,self).__init__(parent, id, title, pos, size, style, name)
+        super(SelectItemsWindow,self).__init__(parent, id, title, pos, size, style, name)
+        gs = wx.GridSizer(rows=1) # rows, cols, gap
+        # add controls
+
+        self.clb = wx.CheckListBox(self, -1, wx.DefaultPosition, wx.DefaultSize, 
+            choices=["a","b"], 
+            style=0, 
+            validator=wx.DefaultValidator, 
+            name="") 
+        self.Bind(wx.EVT_CHECKLISTBOX, self.onSelect)
+        gs.Add(self.clb, 0, wx.EXPAND)
+        self.SetSizer(gs)
+
+    def onSelect(self, event):
+        n = event.GetInt()
+        print(n)
+        print(self.clb.GetString(n))
+        print(self.clb.IsChecked(n))
+
+class MainWindow(wx.Frame):
+    def __init__(self,  parent, id=-1, title="", 
+            pos=wx.DefaultPosition, size=wx.DefaultSize, 
+            style=wx.DEFAULT_FRAME_STYLE, name=""):
+        super(MainWindow,self).__init__(parent, id, title, pos, size, style, name)
+
+        self.lampCustomizer = CheckListWindow(self, ["A", "B", "C", "D", "E", "F"], ["B", "C", "D"], self.lampListCustomized, "Uncheck items to hide them")
+        self.lampCustomizer.Show(False)
+
+        self.switchCustomizer = CheckListWindow(self, ["A", "B", "C", "D", "E", "F"], ["B", "C", "D"], self.switchListCustomized, "Uncheck items to hide them")
+        self.switchCustomizer.Show(False)
+
+        self.RgbCustomizerWindow = OrderedListPanel(self, ["a"], self.makeRgbShow, self.addRgbFile, self.previewRgbFrame, "RGB Show")
 
         self.layout_mode = False
         self.graphical_mode = False
@@ -415,6 +494,9 @@ class MyFrame(wx.Frame):
 
         self.layout_data['button_locations'] = []
         self.layout_data['lamp_locations'] = []
+
+        self.lamp_show_img = None
+
         if(options['layout_file'] is not None):
             self.graphical_mode = True
             self.loadLayoutInfo(None)
@@ -422,21 +504,38 @@ class MyFrame(wx.Frame):
             self.graphical_mode = True
 
         if(self.graphical_mode):
-            self.addImage()
+            self.initGraphicalMode()
 
+        global yaml_data
+        yaml_file_name = "game.yaml"
+        if(options['yaml_file'] is not None):
+            yaml_file_name = options['yaml_file']
+        elif('yaml_file' in self.layout_data):
+            yaml_file_name = self.layout_data['yaml_file']
+        else: # no layout data...
+            parser.print_help()
+            print "Failed to find yaml file parameter or in layout file; trying default 'game.yaml'"
+        try:
+            yaml_data = yaml.load(open(yaml_file_name, 'r'))
+        except Exception, e:
+            print "Failed to load machine yaml file '%s' file was missing or invalid." % yaml_file_name
+            kill_threads()
+            raise
+        self.layout_data['yaml_file'] = yaml_file_name
 
-    def addImage(self):
+    def initGraphicalMode(self):
         if(options['bg_image'] is not None):
             # use this first
             bgfile = options['bg_image']
+            self.layout_data['bg_image'] = options['bg_image']
         elif('bg_image' in self.layout_data):
             bgfile = self.layout_data['bg_image']
         else:
             # why are we adding an image when none exists!?
-            raise ValueError("Trying to add an image but the program is not in graphica mode!?")
+            raise ValueError("Trying to add an image but the program is not in graphical mode!?")
 
         self.bmp = wx.Bitmap(bgfile)
-        self.SetClientSizeWH(self.bmp.GetWidth(), self.bmp.GetHeight())
+        # self.SetClientSizeWH(self.bmp.GetWidth(), self.bmp.GetHeight())
         self.Bind(wx.EVT_ERASE_BACKGROUND, self.OnEraseBackgroundDummy)
         self.Bind(wx.EVT_PAINT, self.OnEraseBackground)
 
@@ -446,31 +545,52 @@ class MyFrame(wx.Frame):
         menuBar = wx.MenuBar()
         fileMenu = wx.Menu()
         editMenu = wx.Menu()
+        viewMenu = wx.Menu()
+        lampMenu = wx.Menu()
 
-        saveLayoutMenu = fileMenu.Append(wx.NewId(), "Save Layout",
+        mnuSave = fileMenu.Append(wx.NewId(), "Save Layout",
                                        "Saves the layout")
 
-        exportLedMapMenu = fileMenu.Append(wx.NewId(), "Export LED MAP",
+        mnuLEDexport = lampMenu.Append(wx.NewId(), "Export LED MAP",
                                        "Exports a LED Map")
 
-        exportLampShotTemplateMenu = fileMenu.Append(wx.NewId(), "Export blank lampshow template",
+        mnuLampshowTemplateExport = lampMenu.Append(wx.NewId(), "Export blank lampshow template",
                                        "Exports blank lampshow")
 
-        exitMenuItem = fileMenu.Append(wx.NewId(), "Exit",
+        mnuRgbShowExport = lampMenu.Append(wx.NewId(), "Create an RGB Show (experimental!)",
+                                       "Create RGB Show")
+
+        mnuExit = fileMenu.Append(wx.NewId(), "Exit",
                                        "Exit the application")
+
+        mnuWhichLamps = viewMenu.Append( wx.NewId(), "Hide/Show Specific Lamps", "Customize which lamps are shown/hidden")
+        mnuWhichSwitches  = viewMenu.Append( wx.NewId(), "Hide/Show Specific Switches", "Customize which switches are shown/hidden")
+
+        mnuScaleSwitchesX = editMenu.Append( wx.NewId(), "Scale switch/lamp locations horizontally", "scale switch/lamp locations horizontally")
+        mnuScaleSwitchesY = editMenu.Append( wx.NewId(), "Scale switch/lamp locations vertically", "scale switch/lamp locations vertically")
+
+
+        self.Bind(wx.EVT_MENU, self.scaleX, mnuScaleSwitchesX)
+        self.Bind(wx.EVT_MENU, self.scaleY, mnuScaleSwitchesY)
+
         menuBar.Append(fileMenu, "&File")
         menuBar.Append(editMenu, "&Edit")
+        menuBar.Append(lampMenu, "&Lampshows")
+        menuBar.Append(viewMenu, "&View")
 
         #oadLayoutMenu = wx.Menu()
         #self.Bind(wx.EVT_MENU, self.loadImage, loadImageMenu)
-        self.Bind(wx.EVT_MENU, self.dumpLayoutInfo, saveLayoutMenu)
+        self.Bind(wx.EVT_MENU, self.dumpLayoutInfo, mnuSave)
         
-        self.Bind(wx.EVT_MENU, self.dumpLEDMap, exportLedMapMenu)
-        self.Bind(wx.EVT_MENU, self.dumpLampShowTemplate, exportLampShotTemplateMenu)
+        self.Bind(wx.EVT_MENU, self.exportRgbShow, mnuRgbShowExport)
 
+        self.Bind(wx.EVT_MENU, self.dumpLEDMap, mnuLEDexport)
+        self.Bind(wx.EVT_MENU, self.dumpLampShowTemplate, mnuLampshowTemplateExport)
 
+        self.Bind(wx.EVT_MENU, self.toggleLamps, mnuWhichLamps)
+        self.Bind(wx.EVT_MENU, self.toggleSwitches, mnuWhichSwitches)
 
-        self.Bind(wx.EVT_MENU, self.OnCloseFrame, exitMenuItem)
+        self.Bind(wx.EVT_MENU, self.OnCloseFrame, mnuExit)
 
         self.toggleLayoutMode = editMenu.Append(wx.NewId(), 'Layout Mode', 
             'Right click switches to move them', kind=wx.ITEM_CHECK)
@@ -478,16 +598,23 @@ class MyFrame(wx.Frame):
             
         editMenu.Check(self.toggleLayoutMode.GetId(), False)
 
-        self.toggleLampRender = editMenu.Append(wx.NewId(), 'Update Lamps', 
+        self.toggleLampRender = viewMenu.Append(wx.NewId(), 'Update Lamps', 
             'Periodically sends requests for lamp info to the OSC server', kind=wx.ITEM_CHECK)
         self.Bind(wx.EVT_MENU, self.ToggleLampOSC, self.toggleLampRender)
             
-        editMenu.Check(self.toggleLampRender.GetId(), False)
+        viewMenu.Check(self.toggleLampRender.GetId(), False)
 
-        lampRateMenuItem = editMenu.Append(wx.NewId(), "Change Lamp update rate",
+        self.toggleStatusBar = viewMenu.Append(wx.NewId(), 'Show Status Bar', 
+            'Show the status bar', kind=wx.ITEM_CHECK)
+        self.Bind(wx.EVT_MENU, self.ToggleStatusBar, self.toggleStatusBar)
+        viewMenu.Check(self.toggleStatusBar.GetId(), True)
+
+
+        lampRateMenuItem = viewMenu.Append(wx.NewId(), "Change Lamp update rate",
                                        "Adjust the lamp refresh rate")
         self.Bind(wx.EVT_MENU, self.PromptForLampRate, lampRateMenuItem)
 
+        self.status_bar = self.CreateStatusBar()
 
         self.SetMenuBar(menuBar)
         if(self.graphical_mode):
@@ -500,6 +627,265 @@ class MyFrame(wx.Frame):
             self.winLampLayoutPalette.Bind(wx.EVT_CLOSE, self.hideSubWin)
 
         self.Bind(wx.EVT_CLOSE, self.OnCloseFrame)
+        self.updateStatusBar()
+
+    def scaleX(self, event):        
+        dlg = wx.TextEntryDialog(self, "adjust on X axis", "100%")
+        dlg.ShowModal()
+        result = dlg.GetValue()
+        dlg.Destroy()
+        
+        if(result.endswith("%")):
+            result = float(result[0:-1])/100
+
+            for lamp in lamp_list.values():
+                lamp.x = lamp.x * result
+            # for switch in buttons.values():
+            #     switch.x = switch.x * result
+        else:
+            result = int(result)
+            for lamp in lamp_list.values():
+                lamp.x = lamp.x + result
+            # for switch in buttons.values():
+            #     switch.x = switch.x + result
+
+        self.doRefresh()
+
+    def scaleY(self, event):        
+        dlg = wx.TextEntryDialog(self, "adjust on Y axis", "100%")
+        dlg.ShowModal()
+        result = dlg.GetValue()
+        dlg.Destroy()
+
+        if(result.endswith("%")):
+            result = float(result[0:-1])/100
+            for lamp in lamp_list.values():
+                lamp.y = lamp.y * result
+            # for switch in buttons.values():
+            #     switch.y = switch.y * result
+        else:
+            result = int(result)
+            for lamp in lamp_list.values():
+                lamp.y = lamp.y + result
+            # for switch in buttons.values():
+            #     switch.y = switch.y + result
+
+        self.doRefresh()
+
+
+    def lampListCustomized(self, selected_items):
+        """ this is the method called when the switch/lamp list customization is complete """
+        global lamp_list
+        if(selected_items is None):
+            return
+        
+        for i,l in lamp_list.iteritems():
+            if(l.name in selected_items):
+                lamp_list[i].hidden = False
+                # print("show %s" % lamp_list[i].name)
+            else:
+                lamp_list[i].hidden = True
+                # print("hide %s" % lamp_list[i].name)
+        self.doRefresh()
+        pass
+
+    def switchListCustomized(self, selected_items):
+        """ this is the method called when the switch/lamp list customization is complete """
+        global buttons
+        if(selected_items is None):
+            return
+        
+        for i,b in buttons.iteritems():
+            if(b.id in selected_items):
+                buttons[i].hidden = False
+                buttons[i].Show()
+            else:
+                buttons[i].hidden = True
+                buttons[i].Hide()
+                # print("hide %s" % lamp_list[i].name)
+        self.doRefresh()
+        pass
+
+    def toggleSwitches(self, event):
+        global buttons
+        all_buttons = [l for l in buttons.keys()]
+        visible_buttons = [l.id for l in buttons.values() if not l.hidden]
+
+        self.switchCustomizer.SetLists(all_buttons, visible_buttons)
+        self.switchCustomizer.Show(True)
+        pass
+
+    def toggleLamps(self, event):
+        global lamp_list
+        all_lamps = [l.name for l in lamp_list.values()]
+        visible_lamps = [l.name for l in lamp_list.values() if not l.hidden]
+
+        self.lampCustomizer.SetLists(all_lamps, visible_lamps)
+        self.lampCustomizer.Show(True)
+        pass
+
+    def exportRgbShow(self, event):
+        if(event is None):
+            return
+
+        frame_files = None
+        loadFileDialog = wx.FileDialog(self, "Open images", "", "", 
+                                      "Image sequence (*.png)|*.png", 
+                                      wx.FD_OPEN | wx.FD_MULTIPLE )
+        loadFileDialog.ShowModal()
+        frame_files = loadFileDialog.GetPaths()
+        loadFileDialog.Destroy()
+        # print("frame_files='%s'" % frame_files)
+
+        if(frame_files is None):
+            return 
+
+        self.RgbCustomizerWindow.SetList(frame_files)
+        self.RgbCustomizerWindow.Show(True)
+
+    def addRgbFile(self):
+        frame_files = None
+        loadFileDialog = wx.FileDialog(self, "Open images", "", "", 
+                                      "Image sequence (*.png)|*.png", 
+                                      wx.FD_OPEN | wx.FD_MULTIPLE )
+        loadFileDialog.ShowModal()
+        frame_files = loadFileDialog.GetPaths()
+        loadFileDialog.Destroy()
+        # print("frame_files='%s'" % frame_files)
+
+        return frame_files
+
+    def previewRgbFrame(self, fname, scale_to_playfield=False):
+        global lamp_list
+        bmp = wx.Bitmap(fname)
+        img = bmp.ConvertToImage()
+
+        if(scale_to_playfield):
+            (w,h) = (self.bmp.GetWidth(), self.bmp.GetHeight())
+            img.Rescale(w, h, wx.IMAGE_QUALITY_NEAREST)
+            bmp = wx.BitmapFromImage(img)
+
+        (w,h) = (bmp.GetWidth(), bmp.GetHeight())
+        self.lamp_show_img = bmp
+
+        # img = None
+        # wx.Quantize.Quantize(img, img, 64)
+
+        for i,lamp in lamp_list.iteritems():
+            (x,y) = lamp_list[i].x, lamp_list[i].y
+            if (x < w and y < h):
+                r = img.GetRed(x,y) 
+                g = img.GetGreen(x,y)
+                b = img.GetBlue(x,y)
+            else:
+                r = 0
+                g = 0
+                b = 0
+
+            lamp_list[i].setColor(r, g, b, 255 )
+
+        self.doRefresh()
+
+
+
+    def makeRgbShow(self, frame_list, scale_to_playfield=False):
+        # print("done")
+
+        self.lamp_show_img = None
+        self.doRefresh()
+
+        if(frame_list is None):
+            return
+
+        saveFileDialog = wx.FileDialog(self, "Save As", "", "", 
+                                      "RgbShow file (*.rgbshow)|*.rgbshow", 
+                                      wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
+        saveFileDialog.ShowModal()
+        fname = saveFileDialog.GetPath()
+        saveFileDialog.Destroy()
+
+        # print("FILENAME='%s'" % fname)
+        if(fname!=""):
+            dest_file  = open(fname,'w')
+        else:
+            dest_file = None
+
+        if(dest_file is None):
+            return 
+
+        global lamp_list
+
+        # frame_files = [fname]
+        color_map = {}
+        lamp_sequences = {}
+
+        # list of frames
+        for lamp in lamp_list:
+            lamp_sequences[lamp] = []
+
+        # for every frame in the animation
+        for fname in frame_list:            
+            bmp = wx.Bitmap(fname)
+            img = bmp.ConvertToImage()
+
+            if(scale_to_playfield):
+                (w,h) = (self.bmp.GetWidth(), self.bmp.GetHeight())
+                img.Rescale(w, h, wx.IMAGE_QUALITY_NEAREST)
+                bmp = wx.BitmapFromImage(img)
+            else:
+                (w,h) = (bmp.GetWidth(), bmp.GetHeight())
+
+            for i,lamp in lamp_list.iteritems():
+                (x,y) = lamp_list[i].x, lamp_list[i].y
+                
+                if (x < w and y < h):
+                    r = img.GetRed(x,y) 
+                    g = img.GetGreen(x,y)
+                    b = img.GetBlue(x,y)
+                else:
+                    r = 0
+                    g = 0
+                    b = 0
+
+                lamp_list[i].off()                
+                hex_color = lamp_list[i].getColorAsHex(r,g,b)
+                
+                color_char = "_"
+                if(hex_color not in color_map):
+                    map_size = len(color_map.keys())
+                    if(map_size < 26):
+                        color_char = chr(map_size + ord("A"))
+                    elif(map_size < 52):
+                        color_char = chr(map_size-26 + ord("a"))
+                    elif(map_size < 62):
+                        color_char = chr(map_size-52 + ord("0"))
+                    else:
+                        dialog = wx.MessageDialog(self, message = "The frame sequence has too many unique colors\n in it for the current (indexed) color model supported by this tool.", caption = "Generation Problem", style = wx.OK | wx.ICON_EXCLAMATION, pos = wx.DefaultPosition)
+                        return
+                    color_map[hex_color] = color_char
+                    # print("mapping %s %s" % (color_char, hex_color))
+                else:
+                    color_char = color_map[hex_color]
+
+                lamp_sequences[lamp_list[i].name].append(color_char)
+
+        # store the sequence file:
+        dest_file.write("##############################\n\
+# Generated RgbShow file\n\
+##############################\n\
+# => defines a color to change immediately (on first occurance)\n\
+# ~> defines a fade into color --fade will be completed on the LAST occurance\n\
+##############################\n\
+# COLOR MAP:\n\
+##############################\n");
+        for (k,v) in color_map.iteritems():
+            dest_file.write("! %s => %s\n" % (v, k))
+        dest_file.write("###########################################\n")
+        for (k,v) in lamp_sequences.iteritems():
+            dest_file.write("%25s | %s\n" % (k,"".join(v)))
+        dest_file.write("###########################################\n")
+        dest_file.close()
+        self.doRefresh()
 
     def hideSubWin(self, event):
         self.winButtonLayoutPalette.Show(False)
@@ -542,6 +928,11 @@ class MyFrame(wx.Frame):
         (x,y) = event.GetPositionTuple()
         print("right click at (%d,%d)" % (x,y))
 
+    def __getDistance(self, x1, y1, x2, y2):
+        dx = math.pow(x2-x1, 2)
+        dy = math.pow(y2-y1, 2)
+        return math.sqrt(dx+dy)
+
     def LeftButtonDOWN(self, event):
         global dirty
         global lamp_list
@@ -575,6 +966,18 @@ class MyFrame(wx.Frame):
             
             self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
             self.doRefresh()
+        elif(self.layout_mode):
+            # search and see if click is inside a lamp
+            closest_lamp = None
+            min_distance = 1000
+            (ex,ey) = event.GetPositionTuple()
+
+            for l in lamp_list.values():
+                 d = self.__getDistance(ex,ey,l.x, l.y)
+                 if(d < min_distance):
+                    closest_lamp = l
+                    min_distance = d
+            print("closest lamp to click was: %s" % closest_lamp.name)
 
     def doRefresh(self):
         global lamps_dirty
@@ -582,6 +985,22 @@ class MyFrame(wx.Frame):
         (w,h) = self.GetClientSizeTuple()
         self.RefreshRect(rect=(0,0,w,h), eraseBackground=True)
         lamps_dirty = False
+
+    def updateStatusBar(self):
+        if(self.layout_mode == True):
+            self.status_bar.SetStatusText("Layout Mode")
+        else:
+            if(self.toggleLampRender.IsChecked()):
+                global lamp_delay
+                self.status_bar.SetStatusText("Interactive Mode  / Lamp Updates ON / %dfps" % lamp_delay)
+            else:
+                self.status_bar.SetStatusText("Interactive Mode  / Lamp Updates OFF ")
+
+    def ToggleStatusBar(self, state):
+        if(self.toggleStatusBar.IsChecked()):
+            self.status_bar.Show()
+        else:
+            self.status_bar.Hide()
 
     def ToggleEditMode(self, state):
         self.layout_mode = self.toggleLayoutMode.IsChecked()
@@ -596,6 +1015,7 @@ class MyFrame(wx.Frame):
             self.winLampLayoutPalette.Show(False)
             self.winButtonLayoutPalette.Show(False)
         pass
+        self.updateStatusBar()
 
     def ToggleLampOSC(self, state):
         global lamps_from_server
@@ -607,11 +1027,13 @@ class MyFrame(wx.Frame):
         else:
             print("pausing")
             lamp_thread_wakeup.clear()
+        self.updateStatusBar()
 
     def PromptForLampRate(self, evt):
         dLampRate = DialogChangeLampRate(None)
         dLampRate.ShowModal()
         dLampRate.Destroy()
+        self.updateStatusBar()
 
     def OnEraseBackground(self, evt):
         """
@@ -631,12 +1053,17 @@ class MyFrame(wx.Frame):
         dc.Clear()
         dc.DrawBitmap(self.bmp, 0, 0)
 
+        if(self.lamp_show_img is not None):
+            dc.DrawBitmap(self.lamp_show_img, 0, 0)
+
         # alpha does NOT work on windows... blah.
         for n,lamp in lamp_list.iteritems():
             # print("Drawing lamp '%s' at (%d,%d) in color (%s)" % (lamp.name, lamp.x, lamp.y, lamp.color))
-            dc.SetBrush(wx.Brush(wx.Colour(lamp.color[0],lamp.color[1],lamp.color[2],128)))
-            dc.SetPen(wx.Pen(wx.Colour(255,255,192), 1, wx.SOLID))            
-            dc.DrawCircle(lamp.x, lamp.y, lamp.size)
+            if(not lamp.hidden):
+                dc.SetBrush(wx.Brush(wx.Colour(lamp.color[0],lamp.color[1],lamp.color[2],lamp.opacity)))
+                dc.SetPen(wx.Pen(wx.Colour(255,255,192), 1, wx.SOLID))            
+                dc.DrawCircle(lamp.x, lamp.y, lamp.size)
+
 
     def OnEraseBackgroundDummy(self, event):
         """ Handles the wx.EVT_ERASE_BACKGROUND event for CustomCheckBox. """
@@ -672,6 +1099,8 @@ class MyFrame(wx.Frame):
 
         #print("KNOWN LAMP COUNT %d" % len(lamp_list))
         for idx,(lamp_id,lamp) in enumerate(lamp_list.iteritems()):
+            if(lamp.hidden):
+                continue
 
             # convert the location
             scaled_x = float(lamp.x) / my_img_size.x
@@ -696,7 +1125,7 @@ class MyFrame(wx.Frame):
             saveFileDialog.ShowModal()
             fname = saveFileDialog.GetPath()
             saveFileDialog.Destroy()
-            print("FILENAME='%s'" % fname)
+            print("Saving to filename '%s'" % fname)
             if(fname!=""):
                 dest_file  = open(fname,'w')
             else:
@@ -704,17 +1133,17 @@ class MyFrame(wx.Frame):
         else:
             dest_file = None
 
-        self.layout_data = {}
-        self.layout_data['bg_image'] = 'playfield.jpg'
         window_size = self.GetClientSizeTuple()
         self.layout_data['window_size'] = {'width':window_size[0], 'height':window_size[1]}
+        self.layout_data['window_pos'] = {'x':self.GetPositionTuple()[0], 'y':self.GetPositionTuple()[1]}
         self.layout_data['button_locations'] = []
         self.layout_data['lamp_locations'] = []
 
         for bID,btn in buttons.iteritems():
             (x,y) = btn.GetPositionTuple()
             btndata = {}
-            btndata[bID]={'x':x, 'y':y}
+            btndata[bID]={'x':x, 'y':y, 'hide':btn.hidden}
+
             # btndata['x']=x 
             # btndata['y']=y
             self.layout_data['button_locations'].append(btndata)
@@ -722,7 +1151,7 @@ class MyFrame(wx.Frame):
         #print("KNOWN LAMP COUNT %d" % len(lamp_list))
         for lID,lamp in lamp_list.iteritems():
             lampdata = {}
-            lampdata[lID]={'x':lamp.x, 'y':lamp.y, 'color_off':{'r':lamp.color_off[0], 'g':lamp.color_off[1],'b':lamp.color_off[2]}, 'color_on':{'r':lamp.color_on[0], 'g':lamp.color_on[1],'b':lamp.color_on[2]}}
+            lampdata[lID]={'x':lamp.x, 'y':lamp.y, 'color_off':{'r':lamp.color_off[0], 'g':lamp.color_off[1],'b':lamp.color_off[2]}, 'color_on':{'r':lamp.color_on[0], 'g':lamp.color_on[1],'b':lamp.color_on[2]}, 'hide':lamp.hidden}
             # btndata['x']=x 
             # btndata['y']=y
             self.layout_data['lamp_locations'].append(lampdata)
@@ -743,9 +1172,14 @@ class MyFrame(wx.Frame):
         #print(self.layout_data)
         #print("w=%d, h=%d" % (self.layout_data['window_size']['width'], self.layout_data['window_size']['height']))
         self.SetClientSizeWH(self.layout_data['window_size']['width'], self.layout_data['window_size']['height'])
+        window_pos = (0,0)
+        if 'window_pos' in self.layout_data: window_pos = self.layout_data['window_pos']
+        if(isinstance(window_pos,tuple)):
+            self.SetPosition(window_pos)
+        else:
+            self.SetPosition((window_pos['x'],window_pos['y']))
         global dirty
         dirty = False
-        
         # self.layout_data['button_locations'] = []
 
     def dumpLampShowTemplate(self, event):
@@ -776,7 +1210,8 @@ class MyFrame(wx.Frame):
 # Frames:                                   | 1234567812345678123456781234567812345678123456781234567812345678\n")
 
         for idx,(lamp_id,lamp) in enumerate(lamp_list.iteritems()):
-
+            if(lamp.hidden):
+                continue
             sLamp = "lamp:%s" % lamp_id
             sLine = sLamp + ' '*(44-len(sLamp)) + '|\n'
             dest_file.write(sLine)
@@ -789,23 +1224,17 @@ class MyFrame(wx.Frame):
 ##############################################
 
 def main():
-        # load the yaml file to find all the switches
-        try:
-            yaml_data = yaml.load(open(options['yaml_file'], 'r'))
-        except Exception, e:
-            if(options['yaml_file']=='game.yaml'):
-                print "Failed to find yaml file '%s' or yaml file was invalid." % options['yaml_file']
-                parser.print_help()
-                kill_threads()
-                return
-            else:
-                print "Failed to find yaml file '%s' or yaml file was invalid." % options['yaml_file']
-                raise
+        global lamp_list
+        global dirty
+
+        global yaml_data
+        yaml_data = {}
+        lamp_list = {}
 
         # make the GUI components
         app = wx.App(redirect=False)
         global frame
-        frame = MyFrame(None, -1, 'OSC Switch Matrix for PyProcGame', pos=wx.DefaultPosition, size=wx.Size(600,400))
+        frame = MainWindow(None, -1, 'PyProcGame GUI Tool', pos=wx.DefaultPosition, size=wx.Size(600,400))
 
         gs = wx.GridSizer(rows=9) # rows, cols, gap
         gsLamps = wx.GridSizer(rows=9)
@@ -834,8 +1263,6 @@ def main():
 
         if 'PRLamps' in yaml_data:
             lamps = yaml_data['PRLamps']
-            global lamp_list
-            global dirty
 
             for name in lamps:
                 item_dict = lamps[name]
@@ -844,76 +1271,62 @@ def main():
                 game_lamps[yaml_number] = name
 
                 lamplocation = find_key_in_list_of_dicts(name, frame.layout_data['lamp_locations'])
-                if (lamplocation is not None):
-                    ld = lamplocation[name]
-                    y = ld['y']
-                    x = ld['x']
-                    on = ( ld['color_on']['r'] , ld['color_on']['g'], ld['color_on']['b'] ) 
-                    off = ( ld['color_off']['r'] , ld['color_off']['g'], ld['color_off']['b'] ) 
-                else:
-                    x = 0
-                    y = 0
-                    on = (0,255,255)
-                    off = (0,0,0)
-                    dirty = True
-
-                lamp = GameLamp(name, yaml_number, x,y, on, off)
+                lamp = GameLamp(name, yaml_number, lamplocation)
                 lamp_list[name] = lamp
 
-            if 'WsRGBs' in yaml_data:
-                lamps = yaml_data['WsRGBs']
-                global lamp_list
-                global dirty
+        if 'WsRGBs' in yaml_data:
+            lamps = yaml_data['WsRGBs']
 
-                for name in lamps:
-                    item_dict = lamps[name]
-                    yaml_number = str(item_dict['number'])
+            for name in lamps:
+                item_dict = lamps[name]
+                yaml_number = str(item_dict['number'])
 
-                    game_lamps[yaml_number] = name
+                game_lamps[yaml_number] = name
 
-                    lamplocation = find_key_in_list_of_dicts(name, frame.layout_data['lamp_locations'])
-                    if (lamplocation is not None):
-                        ld = lamplocation[name]
-                        y = ld['y']
-                        x = ld['x']
-                        on = ( ld['color_on']['r'] , ld['color_on']['g'], ld['color_on']['b'] ) 
-                        off = ( ld['color_off']['r'] , ld['color_off']['g'], ld['color_off']['b'] ) 
-                    else:
-                        x = 0
-                        y = 0
-                        on = (0,255,255)
-                        off = (0,0,0)
-                        dirty = True
+                lamplocation = find_key_in_list_of_dicts(name, frame.layout_data['lamp_locations'])
+                lamp = GameLamp(name, yaml_number, lamplocation)
+                lamp_list[name] = lamp
+                
+        if 'PRLEDs' in yaml_data:
+            lamps = yaml_data['PRLEDs']
 
-                    lamp = GameLamp(name, yaml_number, x,y, on, off)
-                    lamp_list[name] = lamp
+            for name in lamps:
+                item_dict = lamps[name]
+                yaml_number = str(item_dict['number'])
 
-            if(frame.graphical_mode is True):
-                for r in range(0,8):
-                    for c in range(0,8):
-                        lamp_code = 'L%s%s' % (c+1, r+1)
-                            
-                        if lamp_code in game_lamps:
-                            sname = game_lamps.pop(lamp_code)
-                            bL = buttonMaker.makeLampMoveButton(sname, lamp_list)
-                        else:
-                            sname = "N/A"
-                            bL = buttonMaker.makeLampMoveButton(sname, lamp_list, lamp_code)
-                            bL.Enabled = False                
+                game_lamps[yaml_number] = name
 
-                        gsLamps.Add(bL, 0, wx.EXPAND)
-                        
-                for lRemaining in game_lamps.iteritems():
-                    bL = buttonMaker.makeLampMoveButton(lRemaining[1], lamp_list, lRemaining[0])
-                    gsLamps.Add(bL, 0, wx.EXPAND)
+                lamplocation = find_key_in_list_of_dicts(name, frame.layout_data['lamp_locations'])
+                lamp = GameLamp(name, yaml_number, lamplocation)
+                lamp_list[name] = lamp
 
-                # print("learning lamp '%s' at (%d,%d) in color (%s)" % (lamp.name, lamp.x, lamp.y, lamp.color))
-
-            print("PROCESSED %d LAMPS" % len(lamp_list))
-        else:
-            print("PRLamps section NOT found in specified yaml file '%s'.\nExiting..." % options['yaml_file'])
+        if(len(lamp_list)==0):
+            print("PRLamps, PRLEDS, wsRGBs section(s) NOT found in specified yaml file '%s'.\nExiting..." % options['yaml_file'])
             print "----"
             raise
+        print("PROCESSED %d LAMPS" % len(lamp_list))
+
+        if(frame.graphical_mode is True):
+            for r in range(0,8):
+                for c in range(0,8):
+                    lamp_code = 'L%s%s' % (c+1, r+1)
+                        
+                    if lamp_code in game_lamps:
+                        sname = game_lamps.pop(lamp_code)
+                        bL = buttonMaker.makeLampMoveButton(sname, lamp_list)
+                    else:
+                        sname = "N/A"
+                        bL = buttonMaker.makeLampMoveButton(sname, lamp_list, lamp_code)
+                        bL.Enabled = False                
+
+                    gsLamps.Add(bL, 0, wx.EXPAND)
+                    
+            for lRemaining in game_lamps.iteritems():
+                bL = buttonMaker.makeLampMoveButton(lRemaining[1], lamp_list, lRemaining[0])
+                gsLamps.Add(bL, 0, wx.EXPAND)
+
+            # print("learning lamp '%s' at (%d,%d) in color (%s)" % (lamp.name, lamp.x, lamp.y, lamp.color))
+
 
         frame.switch_style = yaml_data['PRGame']['machineType']
         if(frame.switch_style == "pdb"):
@@ -999,7 +1412,7 @@ def main():
 
         # anything left in that dict wasn't in the matrix (i.e., a dedicated switch)
 
-        for i in range(0,32):
+        for i in range(0,80):
             switch_code = "SD%s" % i
             if(switch_code in game_switches):
                 sname = game_switches[switch_code]
