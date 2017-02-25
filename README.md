@@ -15,6 +15,10 @@ If you provide a playfield image as a background (command line option -i [filemn
 
 ![Screenshot](https://dl.dropboxusercontent.com/u/254844/T2-preview/OSC_Gui_PlayfieldLayout.png "Screenshot of the tool running in graphical mode against my T2.yaml")
 
+RGB Show creation using image sequences (and real-time preview):
+
+![Screenshot](https://dl.dropboxusercontent.com/u/254844/T2-preview/rgb_show_maker.png "RGB Show maker")
+
 This has been tested with Williams machines and PDB boards.  Both switch number types are supported
 
 # Requirements:
