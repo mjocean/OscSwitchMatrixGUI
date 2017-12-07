@@ -4,20 +4,20 @@ PyProcGame GUI Development Tool (formerly OscSwitchMatrixGUI)
 A cross-platform (wxPython-based) interactive testing tool that lets you send switch events to the OSC mode for PyProcGame and see lamp updates.
 (Thread for questions/support: http://www.pinballcontrollers.com/forum/index.php?topic=1400)
 
-![Screenshot](https://dl.dropboxusercontent.com/u/254844/T2-preview/gui-tool-buffy-example.png "Screenshot of the tool being used for Buffy testing with lamps and switches enabled")
+![Screenshot](http://skeletongame.com/wp-content/uploads/2017/12/gui-tool-buffy-example.png "Screenshot of the tool being used for Buffy testing with lamps and switches enabled")
 
 The tool reads your machine yaml for switch definitions.  Left click a switch to toggle it 
 (mouse down for active, mouse up for inactive), and right click to turn it on.  If no playfield image is provided, the user gets a simple switch matrix interface based on the game's machine yaml file.
 
-![Screenshot](https://dl.dropboxusercontent.com/u/254844/T2-preview/OSC_Gui_Preview.png "Screenshot of the tool running against my T2.yaml")
+![Screenshot](http://skeletongame.com/wp-content/uploads/2017/12/OSC_Gui_Preview.png "Screenshot of the tool running against my T2.yaml")
 
 If you provide a playfield image as a background (command line option -i [filemname]), you may use the layout mode to place lamps and switches around the playfield (make sure you save your layout!  --next time load with -l [file.layout]).
 
-![Screenshot](https://dl.dropboxusercontent.com/u/254844/T2-preview/OSC_Gui_PlayfieldLayout.png "Screenshot of the tool running in graphical mode against my T2.yaml")
+![Screenshot](http://skeletongame.com/wp-content/uploads/2017/12/OSC_Gui_PlayfieldLayout.png "Screenshot of the tool running in graphical mode against my T2.yaml")
 
 RGB Show creation using image sequences (and real-time preview):
 
-![Screenshot](https://dl.dropboxusercontent.com/u/254844/T2-preview/rgb_show_maker.png "RGB Show maker")
+![Screenshot](http://skeletongame.com/wp-content/uploads/2017/12/rgb_show_maker.png "RGB Show maker")
 
 This has been tested with Williams machines and PDB boards.  Both switch number types are supported
 
