@@ -1,25 +1,25 @@
 #!/usr/bin/python
-# 
+#
 # Copyright (c) 2014 Michael Ocean
 #
 # Licence: The MIT License (MIT)
 #
-#    ________  ______   __                        __   ____  _____ ______   _________            __     
-#   / ____/ / / /  _/  / /_  ____ _________  ____/ /  / __ \/ ___// ____/  / ____/ (_)__  ____  / /_    
-#  / / __/ / / // /   / __ \/ __ `/ ___/ _ \/ __  /  / / / /\__ \/ /      / /   / / / _ \/ __ \/ __/    
-# / /_/ / /_/ // /   / /_/ / /_/ (__  )  __/ /_/ /  / /_/ /___/ / /___   / /___/ / /  __/ / / / /_      
-# \____/\____/___/  /_.___/\__,_/____/\___/\__,_/   \____//____/\____/   \____/_/_/\___/_/ /_/\__/      
-                                                                                                                                                                                                            
-#     ____              ____        ____                  ______                                                                                                                                                                                                                                      
-#    / __/___  _____   / __ \__  __/ __ \_________  _____/ ____/___ _____ ___  ___                                                                                                                                                                                                                    
-#   / /_/ __ \/ ___/  / /_/ / / / / /_/ / ___/ __ \/ ___/ / __/ __ `/ __ `__ \/ _ \                                                                                                                                                                                                                   
-#  / __/ /_/ / /     / ____/ /_/ / ____/ /  / /_/ / /__/ /_/ / /_/ / / / / / /  __/                                                                                                                                                                                                                   
-# /_/  \____/_/     /_/    \__, /_/   /_/   \____/\___/\____/\__,_/_/ /_/ /_/\___/                                                                                                                                                                                                                    
-#                         /____/                                                                                                                                                                                                                                                                      
+#    ________  ______   __                        __   ____  _____ ______   _________            __
+#   / ____/ / / /  _/  / /_  ____ _________  ____/ /  / __ \/ ___// ____/  / ____/ (_)__  ____  / /_
+#  / / __/ / / // /   / __ \/ __ `/ ___/ _ \/ __  /  / / / /\__ \/ /      / /   / / / _ \/ __ \/ __/
+# / /_/ / /_/ // /   / /_/ / /_/ (__  )  __/ /_/ /  / /_/ /___/ / /___   / /___/ / /  __/ / / / /_
+# \____/\____/___/  /_.___/\__,_/____/\___/\__,_/   \____//____/\____/   \____/_/_/\___/_/ /_/\__/
+
+#     ____              ____        ____                  ______
+#    / __/___  _____   / __ \__  __/ __ \_________  _____/ ____/___ _____ ___  ___
+#   / /_/ __ \/ ___/  / /_/ / / / / /_/ / ___/ __ \/ ___/ / __/ __ `/ __ `__ \/ _ \
+#  / __/ /_/ / /     / ____/ /_/ / ____/ /  / /_/ / /__/ /_/ / /_/ / / / / / /  __/
+# /_/  \____/_/     /_/    \__, /_/   /_/   \____/\___/\____/\__,_/_/ /_/ /_/\___/
+#                         /____/
 #
-# Written by Michael Ocean 
-# a GUI-based switch matrix for use with the PyProcGame OSC game mode by Brian Madden; 
-# this was "inspired by" Brian Madden's command-line OSC_Sender tool 
+# Written by Michael Ocean
+# a GUI-based switch matrix for use with the PyProcGame OSC game mode by Brian Madden;
+# this was "inspired by" Brian Madden's command-line OSC_Sender tool
 #   (read: I read his code so I didn't have to figure out how to send OSC messages)
 #
 # Requirements:
@@ -29,7 +29,7 @@
 #
 # 2) wxPython.  http://www.wxpython.org/download.php
 #
-# This has been tested with Williams machines and PDB boards.  
+# This has been tested with Williams machines and PDB boards.
 # Both switch number types are supported
 #
 # -------------------------
@@ -83,27 +83,27 @@ parser = OptionParser()
 lamp_delay = 16
 
 parser.add_option("-s", "--address",
-                                    action="store", type="string", 
+                                    action="store", type="string",
                                     dest="server_ip", default=server_ip,
                                     help="Address of server.  Default is %s." % server_ip)
 
 parser.add_option("-p", "--port",
-                                    action="store", type="int", 
+                                    action="store", type="int",
                                     dest="server_port", default=9000,
                                     help="Port on OSC server.  Default is 9000.")
 
 parser.add_option("-y", "--yaml",
-                                    action="store", type="string", 
+                                    action="store", type="string",
                                     dest="yaml_file", default=None,
                                     help="The yaml file name for the machine definition.  Default is 'game.yaml' (if present).")
 
 parser.add_option("-i", "--image",
-                                    action="store", type="string", 
+                                    action="store", type="string",
                                     dest="bg_image", default=None,
                                     help="The file name for a playfield image.")
 
 parser.add_option("-l", "--layout",
-                                    action="store", type="string", 
+                                    action="store", type="string",
                                     dest="layout_file", default=None,
                                     help="The file name for a playfield layout.  Disabled by default.")
 
@@ -185,7 +185,7 @@ def lamp_updater():
 lamp_thread = threading.Thread(target=lamp_updater)
 
 def sendOSCLampReq(event):
-        addr = '/lamps/get' 
+        addr = '/lamps/get'
         osc_msg = OSC.OSCMessage(addr)
         #print("SENDING: %s" % str(osc_msg))
         osc_client.send(osc_msg)
@@ -202,7 +202,7 @@ def sendOSC(evt_src, new_state=None):
                 print('%s %s' % (addr, 1) )
         elif(states[btn.id]==True and new_state==False):
                 btn.SetBackgroundColour(wx.NullColor)
-                states[btn.id]=False        
+                states[btn.id]=False
                 osc_msg.append(0.0)
                 print('%s %s' % (addr, 0) )
         else:
@@ -218,8 +218,8 @@ class GameLamp(object):
         if (ld is not None):
             y = ld['y']
             x = ld['x']
-            on = ( ld['color_on']['r'] , ld['color_on']['g'], ld['color_on']['b'] ) 
-            off = ( ld['color_off']['r'] , ld['color_off']['g'], ld['color_off']['b'] ) 
+            on = ( ld['color_on']['r'] , ld['color_on']['g'], ld['color_on']['b'] )
+            off = ( ld['color_off']['r'] , ld['color_off']['g'], ld['color_off']['b'] )
             hide = ld['hide'] if('hide' in ld) else False
         else:
             x = 0
@@ -273,7 +273,7 @@ class ButtonMaker(object):
     def onRightButton(self,event):
         btn = event.EventObject
         print "RIGHT Button [%s] pressed!" % btn.id
-        
+
         if(self.frame.layout_mode):
             self.frame.last_button_pressed_id = btn.id
             btn.SetBackgroundColour(wx.CYAN)
@@ -286,7 +286,7 @@ class ButtonMaker(object):
         if(self.frame.graphical_mode):
             return self.makePFButton(sname, switches, number)
         else:
-            return self.makeGridButton(sname, switches, number)        
+            return self.makeGridButton(sname, switches, number)
 
     def makePFButton(self, sname, switches, number=None):
         if(number is None):
@@ -372,7 +372,7 @@ class ButtonMaker(object):
     def onLampClick(self,event):
         btn = event.EventObject
         print "Lamp move '%s' requested!" % btn.id
-        
+
         if(self.frame.layout_mode):
             self.frame.last_lamp_pressed = btn.id
             btn.SetBackgroundColour(wx.CYAN)
@@ -402,13 +402,13 @@ class ButtonMaker(object):
 class DialogChangeLampRate(wx.Dialog):
     # http://zetcode.com/wxpython/dialogs/
     def __init__(self, *args, **kw):
-        super(DialogChangeLampRate, self).__init__(*args, **kw) 
-            
+        super(DialogChangeLampRate, self).__init__(*args, **kw)
+
         self.InitUI()
         self.SetSize((250, 200))
         self.SetTitle("Set Lamp Update Rate")
-        self.value = None        
-    
+        self.value = None
+
     def EvtRadioBox(self, event):
         print('EvtRadioBox: %d %s\n' % (event.GetInt(), event.GetString()))
         self.value = event.GetString()
@@ -417,27 +417,27 @@ class DialogChangeLampRate(wx.Dialog):
 
         vbox = wx.BoxSizer(wx.VERTICAL)
 
-        radioList = ['32','24','16','8','4']        
+        radioList = ['32','24','16','8','4']
 
         rb = wx.RadioBox(self, label="Lamp refresh rate (requests/second)", choices=radioList,  majorDimension=5, style=wx.RA_SPECIFY_ROWS)
         self.Bind(wx.EVT_RADIOBOX, self.EvtRadioBox, rb)
 
         rb.SetSelection(radioList.index(str(lamp_delay)))
         self.value = rb.GetStringSelection()
-       
+
         hbox2 = wx.BoxSizer(wx.HORIZONTAL)
         okButton = wx.Button(self, wx.ID_OK, label='Ok')
         closeButton = wx.Button(self, label='Close')
         hbox2.Add(okButton)
         hbox2.Add(closeButton, flag=wx.LEFT, border=5)
 
-        vbox.Add(rb, proportion=1, 
+        vbox.Add(rb, proportion=1,
             flag=wx.ALL|wx.EXPAND, border=5)
-        vbox.Add(hbox2, 
+        vbox.Add(hbox2,
             flag=wx.ALIGN_CENTER|wx.TOP|wx.BOTTOM, border=10)
 
         self.SetSizer(vbox)
-        
+
         okButton.Bind(wx.EVT_BUTTON, self.OnOK)
         closeButton.Bind(wx.EVT_BUTTON, self.OnClose)
 
@@ -446,24 +446,24 @@ class DialogChangeLampRate(wx.Dialog):
         lamp_delay = int(self.value)
         self.Destroy()
         return wx.ID_OK
-        
+
     def OnClose(self, e):
         self.Destroy()
 
 
 class SelectItemsWindow(wx.Frame):
-    def __init__(self,  parent, id=-1, title="", 
-            pos=wx.DefaultPosition, size=wx.DefaultSize, 
+    def __init__(self,  parent, id=-1, title="",
+            pos=wx.DefaultPosition, size=wx.DefaultSize,
             style=wx.DEFAULT_FRAME_STYLE, name=""):
         super(SelectItemsWindow,self).__init__(parent, id, title, pos, size, style, name)
         gs = wx.GridSizer(rows=1) # rows, cols, gap
         # add controls
 
-        self.clb = wx.CheckListBox(self, -1, wx.DefaultPosition, wx.DefaultSize, 
-            choices=["a","b"], 
-            style=0, 
-            validator=wx.DefaultValidator, 
-            name="") 
+        self.clb = wx.CheckListBox(self, -1, wx.DefaultPosition, wx.DefaultSize,
+            choices=["a","b"],
+            style=0,
+            validator=wx.DefaultValidator,
+            name="")
         self.Bind(wx.EVT_CHECKLISTBOX, self.onSelect)
         gs.Add(self.clb, 0, wx.EXPAND)
         self.SetSizer(gs)
@@ -475,8 +475,8 @@ class SelectItemsWindow(wx.Frame):
         print(self.clb.IsChecked(n))
 
 class MainWindow(wx.Frame):
-    def __init__(self,  parent, id=-1, title="", 
-            pos=wx.DefaultPosition, size=wx.DefaultSize, 
+    def __init__(self,  parent, id=-1, title="",
+            pos=wx.DefaultPosition, size=wx.DefaultSize,
             style=wx.DEFAULT_FRAME_STYLE, name=""):
         super(MainWindow,self).__init__(parent, id, title, pos, size, style, name)
 
@@ -581,7 +581,7 @@ class MainWindow(wx.Frame):
         #oadLayoutMenu = wx.Menu()
         #self.Bind(wx.EVT_MENU, self.loadImage, loadImageMenu)
         self.Bind(wx.EVT_MENU, self.dumpLayoutInfo, mnuSave)
-        
+
         self.Bind(wx.EVT_MENU, self.exportRgbShow, mnuRgbShowExport)
 
         self.Bind(wx.EVT_MENU, self.dumpLEDMap, mnuLEDexport)
@@ -592,19 +592,19 @@ class MainWindow(wx.Frame):
 
         self.Bind(wx.EVT_MENU, self.OnCloseFrame, mnuExit)
 
-        self.toggleLayoutMode = editMenu.Append(wx.NewId(), 'Layout Mode', 
+        self.toggleLayoutMode = editMenu.Append(wx.NewId(), 'Layout Mode',
             'Right click switches to move them', kind=wx.ITEM_CHECK)
         self.Bind(wx.EVT_MENU, self.ToggleEditMode, self.toggleLayoutMode)
-            
+
         editMenu.Check(self.toggleLayoutMode.GetId(), False)
 
-        self.toggleLampRender = viewMenu.Append(wx.NewId(), 'Update Lamps', 
+        self.toggleLampRender = viewMenu.Append(wx.NewId(), 'Update Lamps',
             'Periodically sends requests for lamp info to the OSC server', kind=wx.ITEM_CHECK)
         self.Bind(wx.EVT_MENU, self.ToggleLampOSC, self.toggleLampRender)
-            
+
         viewMenu.Check(self.toggleLampRender.GetId(), False)
 
-        self.toggleStatusBar = viewMenu.Append(wx.NewId(), 'Show Status Bar', 
+        self.toggleStatusBar = viewMenu.Append(wx.NewId(), 'Show Status Bar',
             'Show the status bar', kind=wx.ITEM_CHECK)
         self.Bind(wx.EVT_MENU, self.ToggleStatusBar, self.toggleStatusBar)
         viewMenu.Check(self.toggleStatusBar.GetId(), True)
@@ -629,12 +629,12 @@ class MainWindow(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.OnCloseFrame)
         self.updateStatusBar()
 
-    def scaleX(self, event):        
+    def scaleX(self, event):
         dlg = wx.TextEntryDialog(self, "adjust on X axis", "100%")
         dlg.ShowModal()
         result = dlg.GetValue()
         dlg.Destroy()
-        
+
         if(result.endswith("%")):
             result = float(result[0:-1])/100
 
@@ -651,7 +651,7 @@ class MainWindow(wx.Frame):
 
         self.doRefresh()
 
-    def scaleY(self, event):        
+    def scaleY(self, event):
         dlg = wx.TextEntryDialog(self, "adjust on Y axis", "100%")
         dlg.ShowModal()
         result = dlg.GetValue()
@@ -678,7 +678,7 @@ class MainWindow(wx.Frame):
         global lamp_list
         if(selected_items is None):
             return
-        
+
         for i,l in lamp_list.iteritems():
             if(l.name in selected_items):
                 lamp_list[i].hidden = False
@@ -694,7 +694,7 @@ class MainWindow(wx.Frame):
         global buttons
         if(selected_items is None):
             return
-        
+
         for i,b in buttons.iteritems():
             if(b.id in selected_items):
                 buttons[i].hidden = False
@@ -729,8 +729,8 @@ class MainWindow(wx.Frame):
             return
 
         frame_files = None
-        loadFileDialog = wx.FileDialog(self, "Open images", "", "", 
-                                      "Image sequence (*.png)|*.png", 
+        loadFileDialog = wx.FileDialog(self, "Open images", "", "",
+                                      "Image sequence (*.png)|*.png",
                                       wx.FD_OPEN | wx.FD_MULTIPLE )
         loadFileDialog.ShowModal()
         frame_files = loadFileDialog.GetPaths()
@@ -738,15 +738,15 @@ class MainWindow(wx.Frame):
         # print("frame_files='%s'" % frame_files)
 
         if(frame_files is None):
-            return 
+            return
 
         self.RgbCustomizerWindow.SetList(frame_files)
         self.RgbCustomizerWindow.Show(True)
 
     def addRgbFile(self):
         frame_files = None
-        loadFileDialog = wx.FileDialog(self, "Open images", "", "", 
-                                      "Image sequence (*.png)|*.png", 
+        loadFileDialog = wx.FileDialog(self, "Open images", "", "",
+                                      "Image sequence (*.png)|*.png",
                                       wx.FD_OPEN | wx.FD_MULTIPLE )
         loadFileDialog.ShowModal()
         frame_files = loadFileDialog.GetPaths()
@@ -774,7 +774,7 @@ class MainWindow(wx.Frame):
         for i,lamp in lamp_list.iteritems():
             (x,y) = lamp_list[i].x, lamp_list[i].y
             if (x < w and y < h):
-                r = img.GetRed(x,y) 
+                r = img.GetRed(x,y)
                 g = img.GetGreen(x,y)
                 b = img.GetBlue(x,y)
             else:
@@ -797,8 +797,8 @@ class MainWindow(wx.Frame):
         if(frame_list is None):
             return
 
-        saveFileDialog = wx.FileDialog(self, "Save As", "", "", 
-                                      "RgbShow file (*.rgbshow)|*.rgbshow", 
+        saveFileDialog = wx.FileDialog(self, "Save As", "", "",
+                                      "RgbShow file (*.rgbshow)|*.rgbshow",
                                       wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
         saveFileDialog.ShowModal()
         fname = saveFileDialog.GetPath()
@@ -811,7 +811,7 @@ class MainWindow(wx.Frame):
             dest_file = None
 
         if(dest_file is None):
-            return 
+            return
 
         global lamp_list
 
@@ -824,7 +824,7 @@ class MainWindow(wx.Frame):
             lamp_sequences[lamp] = []
 
         # for every frame in the animation
-        for fname in frame_list:            
+        for fname in frame_list:
             bmp = wx.Bitmap(fname)
             img = bmp.ConvertToImage()
 
@@ -837,9 +837,9 @@ class MainWindow(wx.Frame):
 
             for i,lamp in lamp_list.iteritems():
                 (x,y) = lamp_list[i].x, lamp_list[i].y
-                
+
                 if (x < w and y < h):
-                    r = img.GetRed(x,y) 
+                    r = img.GetRed(x,y)
                     g = img.GetGreen(x,y)
                     b = img.GetBlue(x,y)
                 else:
@@ -847,9 +847,9 @@ class MainWindow(wx.Frame):
                     g = 0
                     b = 0
 
-                lamp_list[i].off()                
+                lamp_list[i].off()
                 hex_color = lamp_list[i].getColorAsHex(r,g,b)
-                
+
                 color_char = "_"
                 if(hex_color not in color_map):
                     map_size = len(color_map.keys())
@@ -940,7 +940,11 @@ class MainWindow(wx.Frame):
             dirty = True
             (x,y) = event.GetPositionTuple()
             bTmp = buttons[self.last_button_pressed_id]
-            (w,h) = bTmp.GetClientSizeTuple()
+            try:
+                (w,h) = bTmp.GetClientSizeTuple()
+            except Exception, e:
+                (w,h) = bTmp.GetClientSize()
+
             x = x - w/2
             y = y - h/2
             bTmp.MoveXY(x,y)
@@ -949,7 +953,7 @@ class MainWindow(wx.Frame):
             bTmp = None
             self.last_button_pressed_id = None
             # self.SetCursor(wx.StockCursor(wx.CURSOR_STANDARD))
-            
+
             self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
         elif(self.layout_mode and self.last_lamp_pressed is not None):
             dirty = True
@@ -963,7 +967,7 @@ class MainWindow(wx.Frame):
             print("moved %s to (%d,%d)" % (self.last_lamp_pressed,x,y))
             self.last_lamp_pressed = None
             # self.SetCursor(wx.StockCursor(wx.CURSOR_STANDARD))
-            
+
             self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
             self.doRefresh()
         elif(self.layout_mode):
@@ -982,7 +986,10 @@ class MainWindow(wx.Frame):
     def doRefresh(self):
         global lamps_dirty
         #print "Refresh!!!"
-        (w,h) = self.GetClientSizeTuple()
+        try:
+            (w,h) = self.GetClientSizeTuple()
+        except Exception, e:
+            (w,h) = self.GetClientSize()
         self.RefreshRect(rect=(0,0,w,h), eraseBackground=True)
         lamps_dirty = False
 
@@ -1005,8 +1012,8 @@ class MainWindow(wx.Frame):
     def ToggleEditMode(self, state):
         self.layout_mode = self.toggleLayoutMode.IsChecked()
         self.last_button_pressed_id = None
-        self.last_lamp_pressed = None        
-        
+        self.last_lamp_pressed = None
+
         if(self.layout_mode == True):
             self.winButtonLayoutPalette.Show(True)
             self.winLampLayoutPalette.Show(True)
@@ -1061,7 +1068,7 @@ class MainWindow(wx.Frame):
             # print("Drawing lamp '%s' at (%d,%d) in color (%s)" % (lamp.name, lamp.x, lamp.y, lamp.color))
             if(not lamp.hidden):
                 dc.SetBrush(wx.Brush(wx.Colour(lamp.color[0],lamp.color[1],lamp.color[2],lamp.opacity)))
-                dc.SetPen(wx.Pen(wx.Colour(255,255,192), 1, wx.SOLID))            
+                dc.SetPen(wx.Pen(wx.Colour(255,255,192), 1, wx.SOLID))
                 dc.DrawCircle(lamp.x, lamp.y, lamp.size)
 
 
@@ -1075,8 +1082,8 @@ class MainWindow(wx.Frame):
 
     def dumpLEDMap(self, event):
         if(event is not None):
-            saveFileDialog = wx.FileDialog(self, "Save As", "", "", 
-                                          "LEDMap file (*.txt)|*.txt", 
+            saveFileDialog = wx.FileDialog(self, "Save As", "", "",
+                                          "LEDMap file (*.txt)|*.txt",
                                           wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
             saveFileDialog.ShowModal()
             fname = saveFileDialog.GetPath()
@@ -1090,7 +1097,7 @@ class MainWindow(wx.Frame):
             dest_file = None
 
         if(dest_file is None):
-            return 
+            return
 
         # led_map_file['bg_image'] = 'playfield.jpg'
         my_img_size = self.bmp.GetSize()
@@ -1119,8 +1126,8 @@ class MainWindow(wx.Frame):
 
     def dumpLayoutInfo(self, event):
         if(event is not None):
-            saveFileDialog = wx.FileDialog(self, "Save As", "", "", 
-                                          "Layout files (*.layout)|*.layout", 
+            saveFileDialog = wx.FileDialog(self, "Save As", "", "",
+                                          "Layout files (*.layout)|*.layout",
                                           wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
             saveFileDialog.ShowModal()
             fname = saveFileDialog.GetPath()
@@ -1132,8 +1139,12 @@ class MainWindow(wx.Frame):
                 dest_file = None
         else:
             dest_file = None
+        window_size = None
+        try:
+            window_size = self.GetClientSizeTuple()
+        except Exception, e:
+            window_size = self.GetClientSize()
 
-        window_size = self.GetClientSizeTuple()
         self.layout_data['window_size'] = {'width':window_size[0], 'height':window_size[1]}
         self.layout_data['window_pos'] = {'x':self.GetPositionTuple()[0], 'y':self.GetPositionTuple()[1]}
         self.layout_data['button_locations'] = []
@@ -1144,7 +1155,7 @@ class MainWindow(wx.Frame):
             btndata = {}
             btndata[bID]={'x':x, 'y':y, 'hide':btn.hidden}
 
-            # btndata['x']=x 
+            # btndata['x']=x
             # btndata['y']=y
             self.layout_data['button_locations'].append(btndata)
 
@@ -1152,14 +1163,14 @@ class MainWindow(wx.Frame):
         for lID,lamp in lamp_list.iteritems():
             lampdata = {}
             lampdata[lID]={'x':lamp.x, 'y':lamp.y, 'color_off':{'r':lamp.color_off[0], 'g':lamp.color_off[1],'b':lamp.color_off[2]}, 'color_on':{'r':lamp.color_on[0], 'g':lamp.color_on[1],'b':lamp.color_on[2]}, 'hide':lamp.hidden}
-            # btndata['x']=x 
+            # btndata['x']=x
             # btndata['y']=y
             self.layout_data['lamp_locations'].append(lampdata)
 
         if(dest_file is not None):
             yaml.dump(self.layout_data, stream=dest_file, default_flow_style=False)
         else:
-            pass 
+            pass
             # print(yaml.dump(self.layout_data, default_flow_style=False))
         global dirty
         dirty = False
@@ -1167,11 +1178,15 @@ class MainWindow(wx.Frame):
 
     def loadLayoutInfo(self, event):
         self.layout_data = yaml.load(file(options['layout_file']))
-        
+
         #self.bg_image = self.layout_data['bg_image']
         #print(self.layout_data)
         #print("w=%d, h=%d" % (self.layout_data['window_size']['width'], self.layout_data['window_size']['height']))
-        self.SetClientSizeWH(self.layout_data['window_size']['width'], self.layout_data['window_size']['height'])
+        try:
+            self.SetClientSizeWH(self.layout_data['window_size']['width'], self.layout_data['window_size']['height'])
+        except Exception, e:
+            self.SetClientSize(self.layout_data['window_size']['width'], self.layout_data['window_size']['height'])
+
         window_pos = (0,0)
         if 'window_pos' in self.layout_data: window_pos = self.layout_data['window_pos']
         if(isinstance(window_pos,tuple)):
@@ -1184,8 +1199,8 @@ class MainWindow(wx.Frame):
 
     def dumpLampShowTemplate(self, event):
         if(event is not None):
-            saveFileDialog = wx.FileDialog(self, "Save As", "", "", 
-                                          "Lampshow file (*.lampshow)|*.lampshow", 
+            saveFileDialog = wx.FileDialog(self, "Save As", "", "",
+                                          "Lampshow file (*.lampshow)|*.lampshow",
                                           wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
             saveFileDialog.ShowModal()
             fname = saveFileDialog.GetPath()
@@ -1199,7 +1214,7 @@ class MainWindow(wx.Frame):
             dest_file = None
 
         if(dest_file is None):
-            return 
+            return
 
         dest_file.write("##############################################################################################################\n\
 # Lightshow: attract_show_1\n\
@@ -1236,11 +1251,11 @@ def main():
         global frame
         frame = MainWindow(None, -1, 'PyProcGame GUI Tool', pos=wx.DefaultPosition, size=wx.Size(600,400))
 
-        gs = wx.GridSizer(rows=9) # rows, cols, gap
-        gsLamps = wx.GridSizer(rows=9)
+        gs = wx.GridSizer(9) # rows, cols, gap
+        gsLamps = wx.GridSizer(9)
         buttonMaker = ButtonMaker(frame)
- 
-        # hold all the switches so we can know which 
+
+        # hold all the switches so we can know which
         # ones are outside the matrix
         game_switches = {}
         game_lamps = {}
@@ -1250,7 +1265,7 @@ def main():
             for name in switches:
                 item_dict = switches[name]
                 yaml_number = str(item_dict['number'])
-                    
+
                 if 'label' in item_dict:
                     swlabel = item_dict['label']
                 if 'type' in item_dict:
@@ -1286,7 +1301,7 @@ def main():
                 lamplocation = find_key_in_list_of_dicts(name, frame.layout_data['lamp_locations'])
                 lamp = GameLamp(name, yaml_number, lamplocation)
                 lamp_list[name] = lamp
-                
+
         if 'PRLEDs' in yaml_data:
             lamps = yaml_data['PRLEDs']
 
@@ -1310,17 +1325,17 @@ def main():
             for r in range(0,8):
                 for c in range(0,8):
                     lamp_code = 'L%s%s' % (c+1, r+1)
-                        
+
                     if lamp_code in game_lamps:
                         sname = game_lamps.pop(lamp_code)
                         bL = buttonMaker.makeLampMoveButton(sname, lamp_list)
                     else:
                         sname = "N/A"
                         bL = buttonMaker.makeLampMoveButton(sname, lamp_list, lamp_code)
-                        bL.Enabled = False                
+                        bL.Enabled = False
 
                     gsLamps.Add(bL, 0, wx.EXPAND)
-                    
+
             for lRemaining in game_lamps.iteritems():
                 bL = buttonMaker.makeLampMoveButton(lRemaining[1], lamp_list, lRemaining[0])
                 gsLamps.Add(bL, 0, wx.EXPAND)
@@ -1352,7 +1367,7 @@ def main():
             print("Using SternSAM style switch numbering.  Trying to order switches...")
             for r in range(0,64):
                 switch_code = 'S%02d' % r
-                
+
                 if switch_code in game_switches:
                     sname = game_switches[switch_code]
                     button = buttonMaker.makeButton(sname, switches)
@@ -1381,7 +1396,7 @@ def main():
             for r in range(0,8):
                     for c in range(0,8):
                             switch_code = 'S%s%s' % (c+1, r+1)
-                            
+
                             if switch_code in game_switches:
                                 sname = game_switches[switch_code]
                                 button = buttonMaker.makeButton(sname, switches)
@@ -1466,7 +1481,7 @@ def kill_threads():
 
 if __name__ == '__main__':
     try:
-        main()    
+        main()
     except Exception, e:
         print "Exception encountered: %s" % str(e)
         # backup the exception info...
